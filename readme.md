@@ -809,8 +809,7 @@ docker compose build --no-cache account-service employee-service
 Inspect container configuration:
 
 ```powershell
-docker compose exec account-service env |
-    Select-String "Kafka__"
+docker compose exec account-service env | Select-String "Kafka__"
 ```
 
 The container must use:
@@ -826,8 +825,7 @@ It must not use `localhost:29092` from inside Docker.
 Inspect:
 
 ```powershell
-docker compose exec account-service env |
-    Select-String "Mongo__"
+docker compose exec account-service env | Select-String "Mongo__"
 ```
 
 The container must use:
