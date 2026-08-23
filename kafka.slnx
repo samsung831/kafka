@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="kafka.AcCountService/kafka.AccountService.csproj" />
+  <Project Path="kafka.Api/kafka.Api.csproj" />
+  <Project Path="kafka.EmployeeService/kafka.EmployeeService.csproj" />
+  <Project Path="kafka.IntegrationTests/kafka.IntegrationTests.csproj" />
+  <Project Path="kafka.Shared/kafka.Shared.csproj" />
+  <Project Path="kafka.UnitTests/kafka.UnitTests.csproj" />
+</Solution>

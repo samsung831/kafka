@@ -1,0 +1,26 @@
+{
+  "_id": "64c3e0f5d1f4c2a1b2c3d4e6",
+  "isActive": false,
+  "isDeleted": false,
+  "createdDate": "2025-01-01T08:00:00.000Z",
+  "modifiedDate": "2025-12-31T16:00:00.000Z",
+  "version": 25,
+  "mappingFields": {
+    "EmployeeId": {
+      "groupId": "ABC123"
+    }
+  },
+  "employmentData": {
+    "employmentStatus": "Ended",
+    "originalHireDate": "2025-01-01T00:00:00.000Z",
+    "lastHireDate": "2025-01-01T00:00:00.000Z",
+    "lastJobPositionChangeDate": "2025-06-01T00:00:00.000Z",
+    "expiredContractDate": "2025-12-31T00:00:00.000Z"
+  },
+  "employeeContact": {
+    "work": {
+      "email": "historical@example.com",
+      "mobile": ""
+    }
+  }
+}

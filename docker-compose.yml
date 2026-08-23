@@ -1,0 +1,191 @@
+services:
+  kafka:
+    image: apache/kafka:4.3.1
+    container_name: kafka
+    hostname: kafka
+    ports:
+      - "29092:29092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+
+    networks:
+      - kafka-network
+
+  kafka-init:
+    image: apache/kafka:4.3.1
+    container_name: kafka-init
+    depends_on:
+      - kafka
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka:9092 \
+          --list > /dev/null 2>&1;
+        do
+          echo "Waiting for Kafka..."
+          sleep 2
+        done
+
+        /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka:9092 \
+          --create \
+          --if-not-exists \
+          --topic topic.accounts \
+          --partitions 1 \
+          --replication-factor 1
+
+        /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka:9092 \
+          --create \
+          --if-not-exists \
+          --topic topic.employees \
+          --partitions 1 \
+          --replication-factor 1
+
+        /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka:9092 \
+          --create \
+          --if-not-exists \
+          --topic topic.accounts.dlq \
+          --partitions 1 \
+          --replication-factor 1
+
+        /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka:9092 \
+          --create \
+          --if-not-exists \
+          --topic topic.employees.dlq \
+          --partitions 1 \
+          --replication-factor 1
+
+        echo "Kafka topics created successfully."
+
+    networks:
+      - kafka-network
+
+  mongodb:
+    image: mongo:8
+    container_name: mongodb
+    ports:
+      - "127.0.0.1:27018:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root-password
+      MONGO_INITDB_DATABASE: persons
+    volumes:
+      - mongodb-data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet --username root --password root-password --authenticationDatabase admin --eval 'db.adminCommand({ ping: 1 }).ok' | grep 1"
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+    networks:
+      - kafka-network
+
+  account-service:
+    container_name: account-service
+    hostname: account-service
+    restart: unless-stopped
+
+    build:
+      context: .
+      dockerfile: kafka.AccountService/Dockerfile
+
+    image: kafka-account-service:local
+
+    ports:
+      - "5101:8080"
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+
+      Kafka__BootstrapServers: kafka:9092
+      Kafka__GroupId: kafka-account-service
+      Kafka__Topic: topic.accounts
+      Kafka__DeadLetterTopic: topic.accounts.dlq
+
+      Mongo__ConnectionString: mongodb://root:root-password@mongodb:27017/?authSource=admin
+      Mongo__DatabaseName: persons
+
+      Resilience__MaxRetryAttempts: 3
+      Resilience__RetryDelayMilliseconds: 500
+
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+
+      mongodb:
+        condition: service_healthy
+
+    networks:
+      - kafka-network
+
+  employee-service:
+    container_name: employee-service
+    hostname: employee-service
+    restart: unless-stopped
+
+    build:
+      context: .
+      dockerfile: kafka.EmployeeService/Dockerfile
+
+    image: kafka-employee-service:local
+
+    ports:
+      - "5102:8080"
+
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+
+      Kafka__BootstrapServers: kafka:9092
+      Kafka__GroupId: kafka-employee-service
+      Kafka__Topic: topic.employees
+      Kafka__DeadLetterTopic: topic.employees.dlq
+
+      Mongo__ConnectionString: mongodb://root:root-password@mongodb:27017/?authSource=admin
+      Mongo__DatabaseName: persons
+
+      Resilience__MaxRetryAttempts: 3
+      Resilience__RetryDelayMilliseconds: 500
+
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+
+      mongodb:
+        condition: service_healthy
+
+    networks:
+      - kafka-network
+
+volumes:
+  kafka-data:
+  mongodb-data:
+
+networks:
+  kafka-network:
+    name: kafka-persons-network
+    driver: bridge

@@ -1,0 +1,37 @@
+{
+  "_id": "64c3e0f5d1f4c2a1b2c3d4e5",
+  "isActive": true,
+  "isDeleted": false,
+  "createdDate": "2026-06-20T16:21:01.742Z",
+  "modifiedDate": "2026-06-20T16:21:01.742Z",
+  "version": 48,
+  "mappingFields": {
+    "EmployeeId": {
+      "groupId": "ABC123"
+    }
+  },
+  "names": {},
+  "address": {
+    "type": null,
+    "country": "HR",
+    "state": "ISTARSKA",
+    "city": "LABIN",
+    "zipCode": "52220",
+    "address": "RAVNI 16"
+  },
+  "personalData": {
+    "age": 61,
+    "birthDate": "1964-01-01T00:00:00.000Z",
+    "firstName": "Testo",
+    "lastName": "Testic",
+    "gender": "Z"
+  },
+  "employeeContact": {
+    "private": {
+      "email": null,
+      "mobile": "+385 98 123 456",
+      "countryCode": "+385",
+      "country": "HR"
+    }
+  }
+}
