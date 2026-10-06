@@ -7,7 +7,7 @@ A .NET 10 event-driven system that receives account and employee events through 
 The solution contains the following projects:
 
 - `kafka.Api`: receives arbitrary account and employee JSON and publishes events to Kafka. Also reads MongoDB and returns consolidated account and employment information. 
-- `kafka.AcountService`: consumes account events from `topic.accounts` and stores account documents in MongoDB.
+- `kafka.AccountService`: consumes account events from `topic.accounts` and stores account documents in MongoDB.
 - `kafka.EmployeeService`: consumes employee events from `topic.employees` and stores employment documents in MongoDB.
 - `kafka.Shared`: contains shared models, configuration, MongoDB infrastructure, validation, observability, health, and dead-letter models.
 
@@ -48,7 +48,7 @@ Install the following tools:
 | AccountService health | `http://localhost:5101` |
 | EmployeeService health | `http://localhost:5102` |
 | kafka.Api | `http://localhost:5210` |
-| kafka.PersonsApi | `http://localhost:5042` |
+| kafka.Api (HTTPS) | `https://localhost:7160` |
 
 Inside Docker, the consumer services use:
 
