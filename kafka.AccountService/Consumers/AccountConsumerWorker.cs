@@ -169,6 +169,7 @@ public sealed class AccountConsumerWorker : ConsumerBase
                 {
                     _workerHealthState.MarkProcessingFailed(exception);
                     Logger.LogError(exception, "Unexpected account processing error.");
+                    throw;
                 }
                 finally
                 {

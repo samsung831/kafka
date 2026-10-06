@@ -41,7 +41,9 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
     private static readonly TopicSpecification[] RequiredTopics =
     [
         new() { Name = KafkaTopicsConstants.Accounts, NumPartitions = 1, ReplicationFactor = 1 },
-        new() { Name = KafkaTopicsConstants.Employees, NumPartitions = 1, ReplicationFactor = 1 }
+        new() { Name = KafkaTopicsConstants.Employees, NumPartitions = 1, ReplicationFactor = 1 },
+        new() { Name = KafkaTopicsConstants.AccountsDeadLetter, NumPartitions = 1, ReplicationFactor = 1 },
+        new() { Name = KafkaTopicsConstants.EmployeesDeadLetter, NumPartitions = 1, ReplicationFactor = 1 }
     ];
     private readonly KafkaContainer _kafkaContainer;
     private readonly MongoDbContainer _mongoContainer;
@@ -100,6 +102,13 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
     /// Gets the MongoContext instance used for integration testing.
     /// </summary>
     public MongoContext MongoContext { get; private set; } = null!;
+    #endregion
+
+    #region EmployeeConsumerGroupId
+    /// <summary>
+    /// Gets the unique consumer group ID for the EmployeeConsumerWorker used in integration testing.
+    /// </summary>
+    public string EmployeeConsumerGroupId { get; private set; } = string.Empty;
     #endregion
 
     #region KafkaApiClient
@@ -268,11 +277,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
                     .Select(topic => topic.Topic)
                     .ToHashSet(StringComparer.Ordinal);
 
-                var accountsTopicIsAvailable = availableTopics.Contains(KafkaTopicsConstants.Accounts);
-
-                var employeesTopicIsAvailable = availableTopics.Contains(KafkaTopicsConstants.Employees);
-
-                return Task.FromResult(accountsTopicIsAvailable && employeesTopicIsAvailable);
+                return Task.FromResult(RequiredTopics.All(topic => availableTopics.Contains(topic.Name)));
             }
             catch (KafkaException)
             {
@@ -293,7 +298,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
     {
         var accountConsumerGroup = $"{AccountConsumerGroupPrefix}-{Guid.NewGuid():N}";
 
-        var employeeConsumerGroup = $"{EmployeeConsumerGroupPrefix}-{Guid.NewGuid():N}";
+        EmployeeConsumerGroupId = $"{EmployeeConsumerGroupPrefix}-{Guid.NewGuid():N}";
 
         _accountWorker = new AccountConsumerWorker(CreateKafkaOptions(KafkaTopicsConstants.Accounts, accountConsumerGroup),
             MongoContext,
@@ -301,7 +306,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
             Options.Create(new ResilienceOptions()),
             _loggerFactory.CreateLogger<AccountConsumerWorker>());
 
-        _employeeWorker = new EmployeeConsumerWorker(CreateKafkaOptions(KafkaTopicsConstants.Employees, employeeConsumerGroup),
+        _employeeWorker = new EmployeeConsumerWorker(CreateKafkaOptions(KafkaTopicsConstants.Employees, EmployeeConsumerGroupId),
             MongoContext,
             new Shared.Health.WorkerHealthState(),
             Options.Create(new ResilienceOptions()),
@@ -326,7 +331,13 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
         {
             BootstrapServers = KafkaBootstrapServers,
             GroupId = groupId,
-            Topic = topic
+            Topic = topic,
+            DeadLetterTopic = topic switch
+            {
+                KafkaTopicsConstants.Accounts => KafkaTopicsConstants.AccountsDeadLetter,
+                KafkaTopicsConstants.Employees => KafkaTopicsConstants.EmployeesDeadLetter,
+                _ => throw new ArgumentOutOfRangeException(nameof(topic), topic, "Unknown source topic.")
+            }
         });
     }
     #endregion

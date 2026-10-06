@@ -3,8 +3,12 @@ using System.Collections.Generic;
 using System.Text;
 using System.Net;
 using System.Text.Json;
+using Confluent.Kafka;
+using Confluent.Kafka.Admin;
 using kafka.IntegrationTests.Infrastructure;
 using kafka.IntegrationTests.TestData;
+using kafka.Shared.Constants;
+using kafka.Shared.DeadLetter;
 using kafka.Shared.Models.Accounts;
 using kafka.Shared.Models.Responses;
 using MongoDB.Driver;
@@ -52,6 +56,89 @@ public sealed class EventProcessingFlowTests
         request.Headers.Add("X-Correlation-ID", correlationId);
 
         return await _fixture.KafkaApiClient.SendAsync(request);
+    }
+    #endregion
+
+    #region ReadDeadLetterAsync
+    /// <summary>
+    /// Reads a dead-letter message from the specified Kafka topic that matches the expected document ID.
+    /// </summary>
+    /// <param name="topic">The Kafka topic from which to read the dead-letter message.</param>
+    /// <param name="expectedDocumentId">The expected document ID of the dead-letter message.</param>
+    /// <returns>The dead-letter message if found; otherwise, throws a TimeoutException.</returns>
+    /// <exception cref="TimeoutException"></exception>
+    private async Task<DeadLetterMessage> ReadDeadLetterAsync(string topic, string expectedDocumentId)
+    {
+        using var consumer = new ConsumerBuilder<string, string>(new ConsumerConfig
+        {
+            BootstrapServers = _fixture.KafkaBootstrapServers,
+            GroupId = $"integration-dead-letter-{Guid.NewGuid():N}",
+            AutoOffsetReset = AutoOffsetReset.Earliest,
+            EnableAutoCommit = false
+        }).Build();
+
+        consumer.Subscribe(topic);
+
+        using var timeout = new CancellationTokenSource(ProcessingTimeout);
+
+        while (!timeout.IsCancellationRequested)
+        {
+            var result = consumer.Consume(TimeSpan.FromMilliseconds(250));
+
+            if (result is null)
+            {
+                continue;
+            }
+
+            var deadLetter = JsonSerializer.Deserialize<DeadLetterMessage>(result.Message.Value, JsonSerializerOptions.Web);
+
+            if (deadLetter is null)
+            {
+                continue;
+            }
+
+            using var originalPayload = JsonDocument.Parse(deadLetter.OriginalPayload);
+
+            if (originalPayload.RootElement.TryGetProperty("_id", out var id) && id.GetString() == expectedDocumentId)
+            {
+                return deadLetter;
+            }
+        }
+
+        throw new TimeoutException($"No dead-letter message was received for document '{expectedDocumentId}'.");
+    }
+    #endregion
+
+    #region WaitForCommittedOffsetAsync
+    /// <summary>
+    /// Waits until the specified consumer group has committed an offset greater than or equal to the expected offset for the given topic.
+    /// </summary>
+    /// <param name="groupId">The consumer group ID.</param>
+    /// <param name="topic">The Kafka topic.</param>
+    /// <param name="expectedOffset">The expected offset.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task WaitForCommittedOffsetAsync(string groupId, string topic, long expectedOffset)
+    {
+        using var adminClient = new AdminClientBuilder(new AdminClientConfig
+        {
+            BootstrapServers = _fixture.KafkaBootstrapServers
+        }).Build();
+
+        await AsyncWait.UntilAsync(async _ =>
+        {
+            try
+            {
+                var results = await adminClient.ListConsumerGroupOffsetsAsync(
+                    [new ConsumerGroupTopicPartitions(groupId, [new TopicPartition(topic, new Partition(0))])],
+                    new ListConsumerGroupOffsetsOptions());
+
+                return results.Single().Partitions.Single().Offset.Value >= expectedOffset;
+            }
+            catch (KafkaException)
+            {
+                return false;
+            }
+        }, ProcessingTimeout);
     }
     #endregion
 
@@ -312,6 +399,51 @@ public sealed class EventProcessingFlowTests
         Assert.Equal(accountId, matchingPerson.Account.Id);
 
         Assert.Equal(2, matchingPerson.Employees.Count);
+    }
+    #endregion
+
+    #region EmployeeDuplicateActiveEmployment_IsDeadLetteredAndConsumerContinues
+    /// <summary>
+    /// Tests that when a duplicate active employment event for an employee is published, it is sent to the dead-letter topic and the consumer continues processing subsequent events.
+    /// </summary>
+    /// <returns></returns>
+    [Fact]
+    public async Task EmployeeDuplicateActiveEmployment_IsDeadLetteredAndConsumerContinues()
+    {
+        await _fixture.DeleteAllDataAsync();
+
+        const string groupId = "INTEGRATION-DLQ-ACTIVE-EMPLOYMENT";
+        const string firstEmployeeId = "b4c3e0f5d1f4c2a1b2c3d401";
+        const string conflictingEmployeeId = "b4c3e0f5d1f4c2a1b2c3d402";
+        const string historicalEmployeeId = "b4c3e0f5d1f4c2a1b2c3d403";
+
+        using var firstResponse = await PostJsonAsync("/api/events/employees",
+            EventJsonFactory.CreateEmployee(firstEmployeeId, groupId, 1, true, false, "Working", "first@example.com"),
+            "active-employment-first");
+        Assert.Equal(HttpStatusCode.Accepted, firstResponse.StatusCode);
+        await WaitForEmployeeVersionAsync(firstEmployeeId, expectedVersion: 1);
+
+        using var conflictingResponse = await PostJsonAsync("/api/events/employees",
+            EventJsonFactory.CreateEmployee(conflictingEmployeeId, groupId, 1, true, false, "Working", "conflict@example.com"),
+            "active-employment-conflict");
+        Assert.Equal(HttpStatusCode.Accepted, conflictingResponse.StatusCode);
+
+        var deadLetter = await ReadDeadLetterAsync(KafkaTopicsConstants.EmployeesDeadLetter, conflictingEmployeeId);
+
+        Assert.Equal(KafkaTopicsConstants.Employees, deadLetter.SourceTopic);
+        Assert.Equal("validation", deadLetter.FailureReason);
+        Assert.Contains(conflictingEmployeeId, deadLetter.OriginalPayload, StringComparison.Ordinal);
+        Assert.True(deadLetter.SourceOffset >= 0);
+
+        await WaitForCommittedOffsetAsync(_fixture.EmployeeConsumerGroupId, KafkaTopicsConstants.Employees,
+            deadLetter.SourceOffset + 1);
+
+        using var historicalResponse = await PostJsonAsync("/api/events/employees",
+            EventJsonFactory.CreateEmployee(historicalEmployeeId, groupId, 1, false, false, "Ended", "historical@example.com"),
+            "active-employment-historical");
+        Assert.Equal(HttpStatusCode.Accepted, historicalResponse.StatusCode);
+
+        await WaitForEmployeeCountAsync(groupId, expectedCount: 2);
     }
     #endregion
 

@@ -137,6 +137,12 @@ public sealed class EmployeeConsumerWorker : ConsumerBase
                 catch (MongoWriteException exception) when (exception.WriteError?.Category == ServerErrorCategory.DuplicateKey)
                 {
                     await PublishToDeadLetterAsync(deadLetterProducer, consumeResult, correlationId, "validation", exception, 0, stoppingToken);
+                    CommitInvalidMessage(consumer, consumeResult);
+                }
+                catch (MongoWriteException exception)
+                {
+                    await PublishToDeadLetterAsync(deadLetterProducer, consumeResult, correlationId, "persistence", exception, 0, stoppingToken);
+                    CommitInvalidMessage(consumer, consumeResult);
                 }
                 catch (ConsumeException exception)
                 {
@@ -167,6 +173,7 @@ public sealed class EmployeeConsumerWorker : ConsumerBase
                 {
                     _workerHealthState.MarkProcessingFailed(exception);
                     Logger.LogError(exception, "Unexpected employee processing error.");
+                    throw;
                 }
                 finally
                 {
