@@ -17,7 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\kafka.Api\kafka.Api.csproj" />
-    <ProjectReference Include="..\kafka.AcCountService\kafka.AccountService.csproj" />
+    <ProjectReference Include="..\kafka.AccountService\kafka.AccountService.csproj" />
     <ProjectReference Include="..\kafka.EmployeeService\kafka.EmployeeService.csproj" />
     <ProjectReference Include="..\kafka.Shared\kafka.Shared.csproj" />
   </ItemGroup>
