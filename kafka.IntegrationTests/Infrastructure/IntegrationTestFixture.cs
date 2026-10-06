@@ -111,6 +111,13 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
     public string EmployeeConsumerGroupId { get; private set; } = string.Empty;
     #endregion
 
+    #region AccountConsumerGroupId
+    /// <summary>
+    /// Gets the unique consumer group ID for the AccountConsumerWorker used in integration testing.
+    /// </summary>
+    public string AccountConsumerGroupId { get; private set; } = string.Empty;
+    #endregion
+
     #region KafkaApiClient
     /// <summary>
     /// Gets the HttpClient instance used to interact with the Kafka API for integration testing.
@@ -296,11 +303,11 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
     /// <returns>A task that represents the asynchronous operation.</returns>
     private async Task StartWorkersAsync()
     {
-        var accountConsumerGroup = $"{AccountConsumerGroupPrefix}-{Guid.NewGuid():N}";
+        AccountConsumerGroupId = $"{AccountConsumerGroupPrefix}-{Guid.NewGuid():N}";
 
         EmployeeConsumerGroupId = $"{EmployeeConsumerGroupPrefix}-{Guid.NewGuid():N}";
 
-        _accountWorker = new AccountConsumerWorker(CreateKafkaOptions(KafkaTopicsConstants.Accounts, accountConsumerGroup),
+        _accountWorker = new AccountConsumerWorker(CreateKafkaOptions(KafkaTopicsConstants.Accounts, AccountConsumerGroupId),
             MongoContext,
             new Shared.Health.WorkerHealthState(),
             Options.Create(new ResilienceOptions()),

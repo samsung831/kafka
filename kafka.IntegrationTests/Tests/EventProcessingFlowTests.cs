@@ -447,6 +447,29 @@ public sealed class EventProcessingFlowTests
     }
     #endregion
 
+    #region InvalidAccountEvent_IsDeadLetteredAndOffsetCommitted
+    /// <summary>
+    /// Tests that when an invalid account event is published, it is sent to the dead-letter topic and the consumer commits the offset for the invalid message.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    [Fact]
+    public async Task InvalidAccountEvent_IsDeadLetteredAndOffsetCommitted()
+    {
+        const string accountId = "c4c3e0f5d1f4c2a1b2c3d4f1";
+        const string payload = "{\"_id\":\"c4c3e0f5d1f4c2a1b2c3d4f1\",\"version\":1}";
+
+        using var response = await PostJsonAsync("/api/events/accounts", payload, "invalid-account-validation");
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+
+        var deadLetter = await ReadDeadLetterAsync(KafkaTopicsConstants.AccountsDeadLetter, accountId);
+
+        Assert.Equal(KafkaTopicsConstants.Accounts, deadLetter.SourceTopic);
+        Assert.Equal("validation", deadLetter.FailureReason);
+
+        await WaitForCommittedOffsetAsync(_fixture.AccountConsumerGroupId, KafkaTopicsConstants.Accounts, deadLetter.SourceOffset + 1);
+    }
+    #endregion
+
     #region AccountVersioning_NewerVersionUpdatesDocument
     /// <summary>
     /// Tests that when a newer version of an account event is processed, it updates the existing account document in the database.

@@ -136,13 +136,13 @@ public sealed class EmployeeConsumerWorker : ConsumerBase
                 }
                 catch (MongoWriteException exception) when (exception.WriteError?.Category == ServerErrorCategory.DuplicateKey)
                 {
-                    await PublishToDeadLetterAsync(deadLetterProducer, consumeResult, correlationId, "validation", exception, 0, stoppingToken);
-                    CommitInvalidMessage(consumer, consumeResult);
+                    await PublishToDeadLetterAndCommitAsync(deadLetterProducer, consumer, consumeResult, correlationId, "validation", exception, 0,
+                        stoppingToken);
                 }
                 catch (MongoWriteException exception)
                 {
-                    await PublishToDeadLetterAsync(deadLetterProducer, consumeResult, correlationId, "persistence", exception, 0, stoppingToken);
-                    CommitInvalidMessage(consumer, consumeResult);
+                    await PublishToDeadLetterAndCommitAsync(deadLetterProducer, consumer, consumeResult, correlationId, "persistence", exception,
+                        0, stoppingToken);
                 }
                 catch (ConsumeException exception)
                 {
@@ -153,17 +153,10 @@ public sealed class EmployeeConsumerWorker : ConsumerBase
                         throw;
                     }
                 }
-                catch (JsonException exception)
+                catch (Exception exception) when (exception is JsonException or ArgumentException)
                 {
-                    await PublishToDeadLetterAsync(deadLetterProducer, consumeResult, correlationId, "validation", exception, 0, stoppingToken);
-
-                    CommitInvalidMessage(consumer, consumeResult);
-                }
-                catch (ArgumentException exception)
-                {
-                    await PublishToDeadLetterAsync(deadLetterProducer, consumeResult, correlationId, "validation", exception, 0, stoppingToken);
-
-                    CommitInvalidMessage(consumer, consumeResult);
+                    await PublishToDeadLetterAndCommitAsync(deadLetterProducer, consumer, consumeResult, correlationId, "validation", exception, 0,
+                        stoppingToken);
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {

@@ -48,6 +48,65 @@ public class ConsumerBase : BackgroundService
 
     #region Methods
 
+    #region Private
+
+    #region PublishToDeadLetter
+    /// <summary>
+    /// Publishes a message to the dead letter topic in Kafka.
+    /// </summary>
+    /// <param name="producer">The Kafka producer.</param>
+    /// <param name="consumeResult">The consume result containing the message to publish.</param>
+    /// <param name="correlationId">The correlation ID for the message.</param>
+    /// <param name="failureReason">The reason for the failure.</param>
+    /// <param name="exception">The exception that caused the failure.</param>
+    /// <param name="retryCount">The number of retry attempts.</param>
+    /// <param name="cancellationToken">The cancellation token.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    private async Task PublishToDeadLetterAsync(IProducer<string, string> producer, ConsumeResult<string, string> consumeResult,
+        string correlationId, string failureReason, Exception exception, int retryCount, CancellationToken cancellationToken)
+    {
+        if (consumeResult is null)
+        {
+            return;
+        }
+
+        var deadLetterMessage = new DeadLetterMessage
+        {
+            SourceService = _sourceService,
+            SourceTopic = consumeResult.Topic,
+            SourcePartition = consumeResult.Partition.Value,
+            SourceOffset = consumeResult.Offset.Value,
+            SourceKey = consumeResult.Message.Key,
+            OriginalPayload = consumeResult.Message.Value,
+            CorrelationId = correlationId,
+            FailureReason = failureReason,
+            ErrorType = exception.GetType().Name,
+            RetryCount = retryCount,
+            FailedAtUtc = DateTimeOffset.UtcNow
+        };
+
+        var payload = JsonSerializer.Serialize(deadLetterMessage, JsonSerializerOptions.Web);
+
+        var message = new Message<string, string>
+        {
+            Key = consumeResult.Message.Key,
+            Value = payload,
+            Headers = new Headers
+                {
+                    new Header(CorrelationConstants.KafkaHeaderName, Encoding.UTF8.GetBytes(correlationId))
+                }
+        };
+
+        await producer.ProduceAsync(KafkaOptions.DeadLetterTopic, message, cancellationToken);
+
+        Logger.LogWarning("Message published to DLQ. DeadLetterTopic: {DeadLetterTopic}, SourceTopic: {SourceTopic}, " +
+            "Partition: {Partition}, Offset: {Offset}, FailureReason: {FailureReason}.",
+            KafkaOptions.DeadLetterTopic, consumeResult.Topic, consumeResult.Partition.Value, consumeResult.Offset.Value, failureReason);
+    }
+    #endregion
+
+    #endregion
+
     #region Protected
 
     #region ExecuteAsync
@@ -179,58 +238,22 @@ public class ConsumerBase : BackgroundService
 
     #endregion
 
-    #region PublishToDeadLetter
+    #region PublishToDeadLetterAndCommitAsync
     /// <summary>
-    /// Publishes a message to the dead letter topic in Kafka.
+    /// Publishes a failed message to the dead-letter topic and commits its source offset only after publication succeeds.
     /// </summary>
-    /// <param name="producer">The Kafka producer.</param>
-    /// <param name="consumeResult">The consume result containing the message to publish.</param>
-    /// <param name="correlationId">The correlation ID for the message.</param>
-    /// <param name="failureReason">The reason for the failure.</param>
-    /// <param name="exception">The exception that caused the failure.</param>
-    /// <param name="retryCount">The number of retry attempts.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
-    protected async Task PublishToDeadLetterAsync(IProducer<string, string> producer, ConsumeResult<string, string> consumeResult,
-        string correlationId, string failureReason, Exception exception, int retryCount, CancellationToken cancellationToken)
+    protected async Task PublishToDeadLetterAndCommitAsync(IProducer<string, string> producer,
+        IConsumer<string, string> consumer, ConsumeResult<string, string>? consumeResult, string? correlationId,
+        string failureReason, Exception exception, int retryCount, CancellationToken cancellationToken)
     {
         if (consumeResult is null)
         {
             return;
         }
 
-        var deadLetterMessage = new DeadLetterMessage
-        {
-            SourceService = _sourceService,
-            SourceTopic = consumeResult.Topic,
-            SourcePartition = consumeResult.Partition.Value,
-            SourceOffset = consumeResult.Offset.Value,
-            SourceKey = consumeResult.Message.Key,
-            OriginalPayload = consumeResult.Message.Value,
-            CorrelationId = correlationId,
-            FailureReason = failureReason,
-            ErrorType = exception.GetType().Name,
-            RetryCount = retryCount,
-            FailedAtUtc = DateTimeOffset.UtcNow
-        };
-
-        var payload = JsonSerializer.Serialize(deadLetterMessage, JsonSerializerOptions.Web);
-
-        var message = new Message<string, string>
-        {
-            Key = consumeResult.Message.Key,
-            Value = payload,
-            Headers = new Headers
-                {
-                    new Header(CorrelationConstants.KafkaHeaderName, Encoding.UTF8.GetBytes(correlationId))
-                }
-        };
-
-        await producer.ProduceAsync(KafkaOptions.DeadLetterTopic, message, cancellationToken);
-
-        Logger.LogWarning("Message published to DLQ. DeadLetterTopic: {DeadLetterTopic}, SourceTopic: {SourceTopic}, " +
-            "Partition: {Partition}, Offset: {Offset}, FailureReason: {FailureReason}.",
-            KafkaOptions.DeadLetterTopic, consumeResult.Topic, consumeResult.Partition.Value, consumeResult.Offset.Value, failureReason);
+        await PublishToDeadLetterAsync(producer, consumeResult, correlationId ?? CorrelationId.Create(), failureReason, exception, retryCount,
+            cancellationToken);
+        CommitInvalidMessage(consumer, consumeResult);
     }
     #endregion
 
