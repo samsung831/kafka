@@ -19,7 +19,6 @@ using System.Text.Json;
 
 namespace kafka.Shared.Consumer;
 
-
 public class ConsumerBase : BackgroundService
 {
     #region Constructor
