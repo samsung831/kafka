@@ -1,42 +1,32 @@
-﻿using MongoDB.Bson.Serialization.Attributes;
-using System.Text.Json.Serialization;
+﻿namespace kafka.Shared.Models.Responses.Account;
 
-namespace kafka.Shared.Models.Accounts;
-
-public sealed class Address
+public sealed class AddressDto
 {
     #region Properties
 
     #region Public
 
     #region Type
-    [BsonElement("type")]
     public string? Type { get; set; }
     #endregion
 
     #region Country
-    [BsonElement("country")]
     public string? Country { get; set; }
     #endregion
 
     #region State
-    [BsonElement("state")]
     public string? State { get; set; }
     #endregion
 
     #region City
-    [BsonElement("city")]
     public string? City { get; set; }
     #endregion
 
     #region ZipCode
-    [BsonElement("zipCode")]
     public string? ZipCode { get; set; }
     #endregion
 
     #region AddressLine
-    [BsonElement("address")]
-    [JsonPropertyName("address")]
     public string? AddressLine { get; set; }
     #endregion
 

@@ -1,8 +1,5 @@
-﻿using kafka.Shared.Models.Accounts;
-using kafka.Shared.Models.Employees;
-using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using kafka.Shared.Models.Responses.Account;
+using kafka.Shared.Models.Responses.Employee;
 
 namespace kafka.Shared.Models.Responses;
 
@@ -13,11 +10,11 @@ public sealed class PersonResponseDto
     #region Public
 
     #region Account
-    public required AccountDocument Account { get; init; }
+    public required AccountDto Account { get; init; }
     #endregion
 
     #region Employees
-    public IReadOnlyCollection<EmployeeDocument> Employees { get; init; } = Array.Empty<EmployeeDocument>();
+    public IReadOnlyCollection<EmployeeDto> Employees { get; init; } = Array.Empty<EmployeeDto>();
     #endregion
 
     #endregion

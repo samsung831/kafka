@@ -359,31 +359,17 @@ public sealed class EventProcessingFlowTests
 
         var person = await DeserializeAsync<PersonResponseDto>(personHttpResponse);
 
-        Assert.Equal(accountId, person.Account.Id);
-
-        Assert.Equal(groupId, person.Account.GroupId);
-
-        Assert.Equal(48, person.Account.Version);
-
         Assert.Equal("Testo", person.Account.PersonalData.FirstName);
 
         Assert.Equal("Testic", person.Account.PersonalData.LastName);
 
         Assert.Equal(2, person.Employees.Count);
 
-        var activeEmployee = Assert.Single(person.Employees, employee => employee.Id == activeEmployeeId);
-
-        Assert.True(activeEmployee.IsActive);
-        Assert.False(activeEmployee.IsDeleted);
-        Assert.Equal(157, activeEmployee.Version);
+        var activeEmployee = Assert.Single(person.Employees, employee => employee.EmployeeContact?.Work?.Email == "active@example.com");
 
         Assert.Equal("Working", activeEmployee.EmploymentData.EmploymentStatus);
 
-        var historicalEmployee = Assert.Single(person.Employees, employee => employee.Id == historicalEmployeeId);
-
-        Assert.False(historicalEmployee.IsActive);
-        Assert.False(historicalEmployee.IsDeleted);
-        Assert.Equal(25, historicalEmployee.Version);
+        var historicalEmployee = Assert.Single(person.Employees, employee => employee.EmployeeContact?.Work?.Email == "historical@example.com");
 
         Assert.Equal("Ended", historicalEmployee.EmploymentData.EmploymentStatus);
 
@@ -394,11 +380,14 @@ public sealed class EventProcessingFlowTests
 
         var searchResults = await DeserializeAsync<List<PersonResponseDto>>(searchHttpResponse);
 
-        var matchingPerson = Assert.Single(searchResults, result => result.Account.GroupId == groupId);
+        var matchingPerson = Assert.Single(searchResults);
 
-        Assert.Equal(accountId, matchingPerson.Account.Id);
+        Assert.Equal("Testo", matchingPerson.Account.PersonalData.FirstName);
+        Assert.Equal("Testic", matchingPerson.Account.PersonalData.LastName);
 
         Assert.Equal(2, matchingPerson.Employees.Count);
+        Assert.Contains(matchingPerson.Employees, employee => employee.EmployeeContact?.Work?.Email == "active@example.com");
+        Assert.Contains(matchingPerson.Employees, employee => employee.EmployeeContact?.Work?.Email == "historical@example.com");
     }
     #endregion
 
@@ -624,10 +613,8 @@ public sealed class EventProcessingFlowTests
 
         var returnedEmployee = Assert.Single(person.Employees);
 
-        Assert.Equal(activeEmployeeId, returnedEmployee.Id);
-
-        Assert.True(returnedEmployee.IsActive);
-        Assert.False(returnedEmployee.IsDeleted);
+        Assert.Equal("active@example.com", returnedEmployee.EmployeeContact?.Work?.Email);
+        Assert.Equal("Working", returnedEmployee.EmploymentData.EmploymentStatus);
     }
     #endregion
 

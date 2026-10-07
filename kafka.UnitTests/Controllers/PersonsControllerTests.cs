@@ -1,8 +1,8 @@
 using kafka.Api.Controllers;
 using kafka.Api.Services;
 using kafka.Shared.Exceptions;
-using kafka.Shared.Models.Accounts;
 using kafka.Shared.Models.Responses;
+using kafka.Shared.Models.Responses.Account;
 using kafka.UnitTests.Helpers;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,12 +16,12 @@ public sealed class PersonsControllerTests
 
     #region CreatePerson
     /// <summary>
-    /// Creates a new instance of <see cref="PersonResponseDto"/> with an empty <see cref="AccountDocument"/>.
+    /// Creates a new instance of <see cref="PersonResponseDto"/> with an empty <see cref="AccountDto"/>.
     /// </summary>
     /// <returns>A new instance of <see cref="PersonResponseDto"/>.</returns>
     private static PersonResponseDto CreatePerson()
     {
-        return new PersonResponseDto { Account = new AccountDocument() };
+        return new PersonResponseDto { Account = new AccountDto() };
     }
     #endregion
 
