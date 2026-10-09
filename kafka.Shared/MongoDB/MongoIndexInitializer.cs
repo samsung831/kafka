@@ -28,7 +28,7 @@ public sealed class MongoIndexInitializer
 
     #region Methods
 
-    #region Private
+    #region Public
 
     #region CreateAccountIndexesAsync
     /// <summary>
@@ -36,7 +36,7 @@ public sealed class MongoIndexInitializer
     /// </summary>
     /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    private async Task CreateAccountIndexesAsync(CancellationToken cancellationToken)
+    public async Task CreateAccountIndexesAsync(CancellationToken cancellationToken = default)
     {
         var groupIdAndStatus = new CreateIndexModel<AccountDocument>(
             Builders<AccountDocument>.IndexKeys
@@ -75,7 +75,7 @@ public sealed class MongoIndexInitializer
     /// </summary>
     /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    private async Task CreateEmployeeIndexesAsync(CancellationToken cancellationToken)
+    public async Task CreateEmployeeIndexesAsync(CancellationToken cancellationToken = default)
     {
         var groupIdAndStatus =
             new CreateIndexModel<EmployeeDocument>(
@@ -115,23 +115,6 @@ public sealed class MongoIndexInitializer
             cancellationToken);
     }
 
-    #endregion
-
-    #endregion
-
-    #region Public
-
-    #region CreateIndexesAsync
-    /// <summary>
-    /// Creates indexes for both the Accounts and Employees collections in MongoDB.
-    /// </summary>
-    /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
-    /// <returns>A task that represents the asynchronous operation.</returns>
-    public async Task CreateIndexesAsync(CancellationToken cancellationToken = default)
-    {
-        await CreateAccountIndexesAsync(cancellationToken);
-        await CreateEmployeeIndexesAsync(cancellationToken);
-    }
     #endregion
 
     #endregion

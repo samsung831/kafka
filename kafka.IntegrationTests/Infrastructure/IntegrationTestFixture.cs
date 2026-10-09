@@ -298,7 +298,7 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
 
     #region StartWorkersAsync
     /// <summary>
-    /// Starts the AccountConsumerWorker and EmployeeConsumerWorker for integration testing by creating unique consumer groups,
+    /// Starts the consumer workers with unique consumer groups after initializing their collection indexes.
     /// </summary>
     /// <returns>A task that represents the asynchronous operation.</returns>
     private async Task StartWorkersAsync()
@@ -319,8 +319,12 @@ public sealed class IntegrationTestFixture : IAsyncLifetime
             Options.Create(new ResilienceOptions()),
             _loggerFactory.CreateLogger<EmployeeConsumerWorker>());
 
+        var indexInitializer = new MongoIndexInitializer(MongoContext);
+
+        await indexInitializer.CreateAccountIndexesAsync();
         await _accountWorker.StartAsync(CancellationToken.None);
 
+        await indexInitializer.CreateEmployeeIndexesAsync();
         await _employeeWorker.StartAsync(CancellationToken.None);
     }
     #endregion

@@ -86,12 +86,24 @@ public sealed class VersionedDocumentWriter<TDocument> where TDocument : BaseDoc
         {
             var storedDocument = await _collection.Find(item => item.Id == document.Id).FirstOrDefaultAsync(cancellationToken);
 
-            if (storedDocument is not null && storedDocument.Version >= document.Version)
+            if (storedDocument is null)
+            {
+                throw;
+            }
+
+            if (storedDocument.Version >= document.Version)
             {
                 return VersionedWriteResult.Ignored;
             }
 
-            throw;
+            var result = await _collection.ReplaceOneAsync(filter, document,
+                new ReplaceOptions
+                {
+                    IsUpsert = false
+                },
+                cancellationToken);
+
+            return result.ModifiedCount > 0 ? VersionedWriteResult.Updated : VersionedWriteResult.Ignored;
         }
     }
     #endregion

@@ -33,21 +33,34 @@ public sealed class PersonsControllerTests
     /// <summary>
     /// Tests that the GetByGroupIdAsync method trims the input groupId and returns the expected person.
     /// </summary>
+    /// <param name="accountIsActive">The account active filter.</param>
+    /// <param name="accountIsDeleted">The account deleted filter.</param>
+    /// <param name="employmentIsActive">The employment active filter.</param>
+    /// <param name="employmentIsDeleted">The employment deleted filter.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    [Fact]
-    public async Task GetByGroupIdAsync_TrimsInputAndReturnsPerson()
+    [Theory]
+    [InlineData(null, null, null, null)]
+    [InlineData(true, false, false, true)]
+    [InlineData(false, true, true, false)]
+    [InlineData(null, false, true, null)]
+    [InlineData(false, null, null, true)]
+    public async Task GetByGroupIdAsync_TrimsInputAndReturnsPerson(bool? accountIsActive, bool? accountIsDeleted,
+        bool? employmentIsActive, bool? employmentIsDeleted)
     {
         var person = CreatePerson();
         var service = new RecordingPersonServiceHelper { PersonResult = person };
         var controller = new PersonsController(service);
 
-        var result = await controller.GetByGroupIdAsync(" ABC123 ", true, false, CancellationToken.None);
+        var result = await controller.GetByGroupIdAsync(" ABC123 ", accountIsActive, accountIsDeleted,
+            employmentIsActive, employmentIsDeleted, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.Same(person, ok.Value);
         Assert.Equal("ABC123", service.GroupId);
-        Assert.True(service.IsActive);
-        Assert.False(service.IsDeleted);
+        Assert.Equal(accountIsActive, service.AccountIsActive);
+        Assert.Equal(accountIsDeleted, service.AccountIsDeleted);
+        Assert.Equal(employmentIsActive, service.EmploymentIsActive);
+        Assert.Equal(employmentIsDeleted, service.EmploymentIsDeleted);
     }
     #endregion
 
@@ -62,7 +75,7 @@ public sealed class PersonsControllerTests
         var controller = new PersonsController(new RecordingPersonServiceHelper());
 
         var exception = await Assert.ThrowsAsync<RequestValidationException>(
-            () => controller.GetByGroupIdAsync(" ", null, null, CancellationToken.None));
+            () => controller.GetByGroupIdAsync(" ", null, null, null, null, CancellationToken.None));
 
         Assert.Equal("groupId is required.", exception.Message);
     }
@@ -79,7 +92,7 @@ public sealed class PersonsControllerTests
         var controller = new PersonsController(new RecordingPersonServiceHelper());
 
         var exception = await Assert.ThrowsAsync<ResourceNotFoundException>(
-            () => controller.GetByGroupIdAsync("ABC123", null, null, CancellationToken.None));
+            () => controller.GetByGroupIdAsync("ABC123", null, null, null, null, CancellationToken.None));
 
         Assert.Equal("Person with groupId 'ABC123' was not found.", exception.Message);
     }
@@ -90,25 +103,38 @@ public sealed class PersonsControllerTests
     /// Tests that the SearchAsync method validates the firstName and lastName parameters,
     /// trims them, and returns the expected results from the delegated service.
     /// </summary>
+    /// <param name="accountIsActive">The account active filter.</param>
+    /// <param name="accountIsDeleted">The account deleted filter.</param>
+    /// <param name="employmentIsActive">The employment active filter.</param>
+    /// <param name="employmentIsDeleted">The employment deleted filter.</param>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    [Fact]
-    public async Task SearchAsync_ValidatesNamesAndReturnsDelegatedResults()
+    [Theory]
+    [InlineData(null, null, null, null)]
+    [InlineData(true, false, false, true)]
+    [InlineData(false, true, true, false)]
+    [InlineData(null, false, true, null)]
+    [InlineData(false, null, null, true)]
+    public async Task SearchAsync_ValidatesNamesAndReturnsDelegatedResults(bool? accountIsActive, bool? accountIsDeleted,
+        bool? employmentIsActive, bool? employmentIsDeleted)
     {
         var persons = new[] { CreatePerson() };
         var service = new RecordingPersonServiceHelper { SearchResult = persons };
         var controller = new PersonsController(service);
 
-        var result = await controller.SearchAsync(" Testo ", " Testic ", false, true, CancellationToken.None);
+        var result = await controller.SearchAsync(" Testo ", " Testic ", accountIsActive, accountIsDeleted,
+            employmentIsActive, employmentIsDeleted, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.Same(persons, ok.Value);
         Assert.Equal("Testo", service.FirstName);
         Assert.Equal("Testic", service.LastName);
-        Assert.False(service.IsActive);
-        Assert.True(service.IsDeleted);
+        Assert.Equal(accountIsActive, service.AccountIsActive);
+        Assert.Equal(accountIsDeleted, service.AccountIsDeleted);
+        Assert.Equal(employmentIsActive, service.EmploymentIsActive);
+        Assert.Equal(employmentIsDeleted, service.EmploymentIsDeleted);
 
-        await Assert.ThrowsAsync<RequestValidationException>(() => controller.SearchAsync(null, "Testic", null, null, CancellationToken.None));
-        await Assert.ThrowsAsync<RequestValidationException>(() => controller.SearchAsync("Testo", " ", null, null, CancellationToken.None));
+        await Assert.ThrowsAsync<RequestValidationException>(() => controller.SearchAsync(null, "Testic", null, null, null, null, CancellationToken.None));
+        await Assert.ThrowsAsync<RequestValidationException>(() => controller.SearchAsync("Testo", " ", null, null, null, null, CancellationToken.None));
     }
     #endregion
 

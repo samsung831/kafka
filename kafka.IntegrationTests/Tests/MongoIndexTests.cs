@@ -2,6 +2,10 @@
 using System.Collections.Generic;
 using System.Text;
 using kafka.IntegrationTests.Infrastructure;
+using kafka.Shared.Configuration;
+using kafka.Shared.Constants;
+using kafka.Shared.MongoDB;
+using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
 
@@ -65,13 +69,13 @@ public sealed class MongoIndexTests
 
     #region Public
 
-    #region PersonsApiStartup_CreatesRequiredAccountIndexes
+    #region AccountIndexes_CreatesRequiredIndexes
     /// <summary>
-    /// Tests that the required indexes for the Accounts collection are created during the startup of the Persons API.
+    /// Tests that account index initialization creates the required indexes for the Accounts collection.
     /// </summary>
     /// <returns>A task that represents the asynchronous operation.</returns>
     [Fact]
-    public async Task PersonsApiStartup_CreatesRequiredAccountIndexes()
+    public async Task AccountIndexes_CreatesRequiredIndexes()
     {
         using var cursor = await _fixture.MongoContext.Accounts.Indexes.ListAsync();
 
@@ -85,13 +89,13 @@ public sealed class MongoIndexTests
     }
     #endregion
 
-    #region PersonsApiStartup_CreatesRequiredEmployeeIndexes
+    #region EmployeeIndexes_CreatesRequiredIndexes
     /// <summary>
-    /// Tests that the required indexes for the Employees collection are created during the startup of the Persons API.
+    /// Tests that employee index initialization creates the required indexes for the Employees collection.
     /// </summary>
     /// <returns>A task that represents the asynchronous operation.</returns>
     [Fact]
-    public async Task PersonsApiStartup_CreatesRequiredEmployeeIndexes()
+    public async Task EmployeeIndexes_CreatesRequiredIndexes()
     {
         using var cursor = await _fixture.MongoContext.Employees.Indexes.ListAsync();
 
@@ -110,6 +114,49 @@ public sealed class MongoIndexTests
         Assert.True(uniqueValue.AsBoolean);
 
         Assert.True(uniqueIndex.Contains("partialFilterExpression"));
+    }
+    #endregion
+
+    #region InitializeIndexes_OnlyCreatesOwnedCollection
+    /// <summary>
+    /// Tests that the index initializer only creates the collection it is responsible for, either Accounts or Employees, based on the input parameter.
+    /// </summary>
+    /// <param name="initializeAccounts">Indicates whether to initialize account indexes (true) or employee indexes (false).</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task InitializeIndexes_OnlyCreatesOwnedCollection(bool initializeAccounts)
+    {
+        var databaseName = $"index_ownership_{Guid.NewGuid():N}";
+        var context = new MongoContext(Options.Create(new MongoOptions
+        {
+            ConnectionString = _fixture.MongoConnectionString,
+            DatabaseName = databaseName
+        }));
+        var initializer = new MongoIndexInitializer(context);
+
+        try
+        {
+            if (initializeAccounts)
+            {
+                await initializer.CreateAccountIndexesAsync();
+            }
+            else
+            {
+                await initializer.CreateEmployeeIndexesAsync();
+            }
+
+            using var cursor = await context.Database.ListCollectionNamesAsync();
+            var collections = await cursor.ToListAsync();
+            var expectedCollection = initializeAccounts ? MongoCollectionsConstants.Accounts : MongoCollectionsConstants.Employees;
+
+            Assert.Equal(expectedCollection, Assert.Single(collections));
+        }
+        finally
+        {
+            await context.Database.Client.DropDatabaseAsync(databaseName);
+        }
     }
     #endregion
 

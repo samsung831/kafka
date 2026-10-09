@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Text.Json;
 using kafka.Shared.Models.Accounts;
 using kafka.Shared.Models.Common;
 using kafka.Shared.Validation;
@@ -58,6 +59,60 @@ public sealed class AccountEventValidatorTests
         var exception = Record.Exception(() => AccountEventValidator.Validate(account));
 
         Assert.Null(exception);
+    }
+    #endregion
+
+    #region Deserialize_WhenRequiredPropertyIsOmitted_Throws
+    /// <summary>
+    /// Validates that deserialization of an AccountDocument throws a JsonException when a required property is omitted from the JSON payload.
+    /// </summary>
+    /// <param name="propertyName">The name of the required property to omit.</param>
+    [Theory]
+    [InlineData("version")]
+    [InlineData("personalData")]
+    public void Deserialize_WhenRequiredPropertyIsOmitted_Throws(string propertyName)
+    {
+        var payload = JsonSerializer.SerializeToNode(CreateValidAccount(), JsonSerializerOptions.Web)!.AsObject();
+        payload.Remove(propertyName);
+
+        var exception = Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<AccountDocument>(payload.ToJsonString(), JsonSerializerOptions.Web));
+
+        Assert.Contains(propertyName, exception.Message);
+    }
+    #endregion
+
+    #region Validate_WhenJsonPersonalDataIsNull_Throws
+    /// <summary>
+    /// Validates that the AccountEventValidator throws an ArgumentException when the PersonalData property of the AccountDocument is null.
+    /// </summary>
+    [Fact]
+    public void Validate_WhenJsonPersonalDataIsNull_Throws()
+    {
+        var payload = JsonSerializer.SerializeToNode(CreateValidAccount(), JsonSerializerOptions.Web)!.AsObject();
+        payload["personalData"] = null;
+        var account = JsonSerializer.Deserialize<AccountDocument>(payload.ToJsonString(), JsonSerializerOptions.Web)!;
+
+        var exception = Assert.Throws<ArgumentException>(() => AccountEventValidator.Validate(account));
+
+        Assert.Contains("personalData is required", exception.Message);
+    }
+    #endregion
+
+    #region Validate_WhenJsonVersionIsExplicitlyZero_DoesNotThrow
+    /// <summary>
+    /// Validates that the AccountEventValidator does not throw an exception when the Version property of the AccountDocument is explicitly set to zero in the JSON payload.
+    /// </summary>
+    [Fact]
+    public void Validate_WhenJsonVersionIsExplicitlyZero_DoesNotThrow()
+    {
+        var original = CreateValidAccount();
+        original.Version = 0;
+        var json = JsonSerializer.Serialize(original, JsonSerializerOptions.Web);
+        var account = JsonSerializer.Deserialize<AccountDocument>(json, JsonSerializerOptions.Web)!;
+
+        Assert.Equal(0, account.Version);
+        Assert.Null(Record.Exception(() => AccountEventValidator.Validate(account)));
     }
     #endregion
 

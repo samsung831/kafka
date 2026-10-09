@@ -1,0 +1,17 @@
+{
+  "_id": "65e000000000000000000001",
+  "isActive": true,
+  "isDeleted": false,
+  "createdDate": "2024-01-01T00:00:00Z",
+  "modifiedDate": "2026-06-01T00:00:00Z",
+  "version": 1,
+  "mappingFields": { "EmployeeId": { "groupId": "SAMPLE-GROUP-A" } },
+  "employmentData": {
+    "employmentStatus": "Working",
+    "originalHireDate": "2018-01-01T00:00:00Z",
+    "lastHireDate": "2024-01-01T00:00:00Z",
+    "lastJobPositionChangeDate": "2024-01-01T00:00:00Z",
+    "expiredContractDate": null
+  },
+  "employeeContact": { "work": { "email": "ana.current@example.com", "mobile": "" } }
+}

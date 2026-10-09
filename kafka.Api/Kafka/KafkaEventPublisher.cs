@@ -41,23 +41,23 @@ public sealed class KafkaEventPublisher : IEventPublisher
     /// <summary>
     /// Tries to extract the groupId from the provided JSON payload.
     /// The method looks for the "mappingFields" property, then the "EmployeeId" property, and finally the "groupId" property within it. 
-    /// If any of these properties are missing or if the "groupId" is not a string, the method returns null.
+    /// Returns null if any parent is not an object, a property is missing, or groupId is not a string.
     /// </summary>
     /// <param name="payload">The JSON payload to extract the groupId from.</param>
     /// <returns>The extracted groupId if present; otherwise, null.</returns>
     private static string? TryGetGroupId(JsonElement payload)
     {
-        if (!payload.TryGetProperty("mappingFields", out var mappingFields))
+        if (payload.ValueKind != JsonValueKind.Object || !payload.TryGetProperty("mappingFields", out var mappingFields))
         {
             return null;
         }
 
-        if (!mappingFields.TryGetProperty("EmployeeId", out var employeeId))
+        if (mappingFields.ValueKind != JsonValueKind.Object || !mappingFields.TryGetProperty("EmployeeId", out var employeeId))
         {
             return null;
         }
 
-        if (!employeeId.TryGetProperty("groupId", out var groupId))
+        if (employeeId.ValueKind != JsonValueKind.Object || !employeeId.TryGetProperty("groupId", out var groupId))
         {
             return null;
         }

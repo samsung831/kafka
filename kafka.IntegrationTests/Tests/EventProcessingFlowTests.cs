@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using kafka.IntegrationTests.Infrastructure;
@@ -11,6 +12,7 @@ using kafka.Shared.Constants;
 using kafka.Shared.DeadLetter;
 using kafka.Shared.Models.Accounts;
 using kafka.Shared.Models.Responses;
+using MongoDB.Bson;
 using MongoDB.Driver;
 
 namespace kafka.IntegrationTests.Tests;
@@ -300,8 +302,12 @@ public sealed class EventProcessingFlowTests
     /// Tests the full flow of processing employee events before an account event and verifies that the combined person data is returned correctly.
     /// </summary>
     /// <returns>A task that represents the asynchronous operation.</returns>
-    [Fact]
-    public async Task FullFlow_EmployeeBeforeAccount_ReturnsCombinedPerson()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("null")]
+    [InlineData("{}")]
+    [InlineData("{\"display\":\"Željko\",\"nested\":{\"preferred\":true,\"middle\":null},\"aliases\":[\"Z\",{\"locale\":\"hr\"},7],\"score\":1.5}")]
+    public async Task FullFlow_EmployeeBeforeAccount_ReturnsCombinedPerson(string? namesJson)
     {
         await _fixture.DeleteAllDataAsync();
 
@@ -343,6 +349,17 @@ public sealed class EventProcessingFlowTests
 
         //Publish account after both employee events.
         var accountJson = EventJsonFactory.CreateAccount(accountId, groupId, version: 48, firstName: "Testo", lastName: "Testic");
+        var accountPayload = JsonNode.Parse(accountJson)!.AsObject();
+        if (namesJson is null)
+        {
+            accountPayload.Remove("names");
+        }
+        else
+        {
+            accountPayload["names"] = JsonNode.Parse(namesJson);
+        }
+        accountJson = accountPayload.ToJsonString();
+        var expectedNames = JsonNode.Parse(namesJson is null or "null" ? "{}" : namesJson);
 
         using var accountResponse = await PostJsonAsync("/api/events/accounts", accountJson, correlationId);
 
@@ -351,6 +368,9 @@ public sealed class EventProcessingFlowTests
         AssertCorrelationHeader(accountResponse, correlationId);
 
         await WaitForAccountVersionAsync(accountId, expectedVersion: 48);
+        var storedAccount = await FindAccountAsync(accountId, CancellationToken.None);
+        Assert.NotNull(storedAccount);
+        Assert.Equal(BsonDocument.Parse(expectedNames!.ToJsonString()), storedAccount.Names);
 
         //Retrieve combined person through PersonsApi.
         using var personHttpResponse = await _fixture.KafkaApiClient.GetAsync($"/api/persons/{groupId}");
@@ -358,6 +378,7 @@ public sealed class EventProcessingFlowTests
         Assert.Equal(HttpStatusCode.OK, personHttpResponse.StatusCode);
 
         var person = await DeserializeAsync<PersonResponseDto>(personHttpResponse);
+        Assert.True(JsonNode.DeepEquals(expectedNames, JsonNode.Parse(person.Account.Names.GetRawText())));
 
         Assert.Equal("Testo", person.Account.PersonalData.FirstName);
 
@@ -381,6 +402,7 @@ public sealed class EventProcessingFlowTests
         var searchResults = await DeserializeAsync<List<PersonResponseDto>>(searchHttpResponse);
 
         var matchingPerson = Assert.Single(searchResults);
+        Assert.True(JsonNode.DeepEquals(expectedNames, JsonNode.Parse(matchingPerson.Account.Names.GetRawText())));
 
         Assert.Equal("Testo", matchingPerson.Account.PersonalData.FirstName);
         Assert.Equal("Testic", matchingPerson.Account.PersonalData.LastName);
@@ -456,6 +478,65 @@ public sealed class EventProcessingFlowTests
         Assert.Equal("validation", deadLetter.FailureReason);
 
         await WaitForCommittedOffsetAsync(_fixture.AccountConsumerGroupId, KafkaTopicsConstants.Accounts, deadLetter.SourceOffset + 1);
+    }
+    #endregion
+
+    #region OmittedRequiredField_IsDeadLetteredAndConsumerContinues
+    /// <summary>
+    /// Tests that when a required field is omitted from an account or employee event, the event is sent to the dead-letter topic and the consumer continues processing subsequent events.
+    /// </summary>
+    /// <param name="isAccount">Indicates whether the event is for an account (true) or an employee (false).</param>
+    /// <param name="propertyName">The name of the required property to omit.</param>
+    /// <returns>A task that represents the asynchronous operation.</returns>
+    [Theory]
+    [InlineData(true, "version")]
+    [InlineData(true, "personalData")]
+    [InlineData(false, "version")]
+    [InlineData(false, "employmentData")]
+    public async Task OmittedRequiredField_IsDeadLetteredAndConsumerContinues(bool isAccount, string propertyName)
+    {
+        var documentId = ObjectId.GenerateNewId().ToString();
+        var groupId = $"REQUIRED-{Guid.NewGuid():N}";
+        var validJson = isAccount
+            ? EventJsonFactory.CreateAccount(documentId, groupId, version: 0)
+            : EventJsonFactory.CreateEmployee(documentId, groupId, 0, true, false, "Working", "required@example.com");
+        var payload = JsonNode.Parse(validJson)!.AsObject();
+        payload.Remove(propertyName);
+        var endpoint = isAccount ? "/api/events/accounts" : "/api/events/employees";
+        var sourceTopic = isAccount ? KafkaTopicsConstants.Accounts : KafkaTopicsConstants.Employees;
+        var deadLetterTopic = isAccount ? KafkaTopicsConstants.AccountsDeadLetter : KafkaTopicsConstants.EmployeesDeadLetter;
+        var consumerGroup = isAccount ? _fixture.AccountConsumerGroupId : _fixture.EmployeeConsumerGroupId;
+        var collectionName = isAccount ? MongoCollectionsConstants.Accounts : MongoCollectionsConstants.Employees;
+
+        using var response = await PostJsonAsync(endpoint, payload.ToJsonString(), "omitted-required-field");
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+
+        var deadLetter = await ReadDeadLetterAsync(deadLetterTopic, documentId);
+
+        Assert.Equal(sourceTopic, deadLetter.SourceTopic);
+        Assert.Equal("validation", deadLetter.FailureReason);
+        Assert.Equal(nameof(JsonException), deadLetter.ErrorType);
+
+        await WaitForCommittedOffsetAsync(consumerGroup, sourceTopic, deadLetter.SourceOffset + 1);
+
+        var collection = _fixture.Database.GetCollection<BsonDocument>(collectionName);
+        var count = await collection.CountDocumentsAsync(new BsonDocument("_id", ObjectId.Parse(documentId)));
+
+        Assert.Equal(0, count);
+
+        using var validResponse = await PostJsonAsync(endpoint, validJson, "required-field-recovery");
+
+        Assert.Equal(HttpStatusCode.Accepted, validResponse.StatusCode);
+
+        if (isAccount)
+        {
+            await WaitForAccountVersionAsync(documentId, expectedVersion: 0);
+        }
+        else
+        {
+            await WaitForEmployeeVersionAsync(documentId, expectedVersion: 0);
+        }
     }
     #endregion
 
@@ -605,7 +686,8 @@ public sealed class EventProcessingFlowTests
 
         await WaitForEmployeeCountAsync(groupId, expectedCount: 2);
 
-        using var filteredResponse = await _fixture.KafkaApiClient.GetAsync($"/api/persons/{groupId}?isActive=true&isDeleted=false");
+        using var filteredResponse = await _fixture.KafkaApiClient.GetAsync(
+            $"/api/persons/{groupId}?employmentIsActive=true&employmentIsDeleted=false");
 
         Assert.Equal(HttpStatusCode.OK, filteredResponse.StatusCode);
 
@@ -615,6 +697,10 @@ public sealed class EventProcessingFlowTests
 
         Assert.Equal("active@example.com", returnedEmployee.EmployeeContact?.Work?.Email);
         Assert.Equal("Working", returnedEmployee.EmploymentData.EmploymentStatus);
+        Assert.True(person.Account.IsActive);
+        Assert.False(person.Account.IsDeleted);
+        Assert.True(returnedEmployee.IsActive);
+        Assert.False(returnedEmployee.IsDeleted);
     }
     #endregion
 

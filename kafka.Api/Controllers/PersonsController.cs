@@ -35,8 +35,10 @@ public sealed class PersonsController : ControllerBase
     /// Gets a person by their groupId.
     /// </summary>
     /// <param name="groupId">The groupId of the person to retrieve.</param>
-    /// <param name="isActive">A flag indicating whether to filter by active status.</param>
-    /// <param name="isDeleted">A flag indicating whether to filter by deleted status.</param>
+    /// <param name="accountIsActive">Optional account active status; omitted values include both statuses.</param>
+    /// <param name="accountIsDeleted">Account deleted status; omitted values exclude deleted accounts.</param>
+    /// <param name="employmentIsActive">Optional employment active status; omitted values include both statuses.</param>
+    /// <param name="employmentIsDeleted">Employment deleted status; omitted values exclude deleted employments.</param>
     /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
     /// <returns>An IActionResult representing the result of the operation.</returns>
     /// <exception cref="RequestValidationException">Thrown when the request validation fails.</exception>
@@ -46,15 +48,16 @@ public sealed class PersonsController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> GetByGroupIdAsync(string groupId, [FromQuery] bool? isActive, [FromQuery] bool? isDeleted,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> GetByGroupIdAsync(string groupId, [FromQuery] bool? accountIsActive, [FromQuery] bool? accountIsDeleted,
+        [FromQuery] bool? employmentIsActive, [FromQuery] bool? employmentIsDeleted, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(groupId))
         {
             throw new RequestValidationException("groupId is required.");
         }
 
-        var person = await _personService.GetByGroupIdAsync(groupId.Trim(), isActive, isDeleted, cancellationToken);
+        var person = await _personService.GetByGroupIdAsync(groupId.Trim(), accountIsActive, accountIsDeleted,
+            employmentIsActive, employmentIsDeleted, cancellationToken);
 
         if (person is null)
         {
@@ -71,8 +74,10 @@ public sealed class PersonsController : ControllerBase
     /// </summary>
     /// <param name="firstName">The first name of the person to search for.</param>
     /// <param name="lastName">The last name of the person to search for.</param>
-    /// <param name="isActive">A flag indicating whether to filter by active status.</param>
-    /// <param name="isDeleted">A flag indicating whether to filter by deleted status.</param>
+    /// <param name="accountIsActive">Optional account active status; omitted values include both statuses.</param>
+    /// <param name="accountIsDeleted">Account deleted status; omitted values exclude deleted accounts.</param>
+    /// <param name="employmentIsActive">Optional employment active status; omitted values include both statuses.</param>
+    /// <param name="employmentIsDeleted">Employment deleted status; omitted values exclude deleted employments.</param>
     /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
     /// <returns>An IActionResult representing the result of the search operation.</returns>
     /// <exception cref="RequestValidationException">Thrown when the request validation fails.</exception>
@@ -81,7 +86,8 @@ public sealed class PersonsController : ControllerBase
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> SearchAsync([FromQuery] string? firstName, [FromQuery] string? lastName,
-        [FromQuery] bool? isActive, [FromQuery] bool? isDeleted, CancellationToken cancellationToken)
+        [FromQuery] bool? accountIsActive, [FromQuery] bool? accountIsDeleted, [FromQuery] bool? employmentIsActive,
+        [FromQuery] bool? employmentIsDeleted, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(firstName))
         {
@@ -93,7 +99,8 @@ public sealed class PersonsController : ControllerBase
             throw new RequestValidationException("lastName is required.");
         }
 
-        var persons = await _personService.SearchAsync(firstName.Trim(), lastName.Trim(), isActive, isDeleted, cancellationToken);
+        var persons = await _personService.SearchAsync(firstName.Trim(), lastName.Trim(), accountIsActive, accountIsDeleted,
+            employmentIsActive, employmentIsDeleted, cancellationToken);
 
         return Ok(persons);
     }

@@ -1,0 +1,17 @@
+{
+  "_id": "65a000000000000000000003",
+  "isActive": true,
+  "isDeleted": false,
+  "createdDate": "2026-01-01T00:00:00Z",
+  "modifiedDate": "2026-06-01T00:00:00Z",
+  "version": 1,
+  "mappingFields": { "EmployeeId": { "groupId": "SAMPLE-GROUP-C" } },
+  "names": {},
+  "personalData": {
+    "firstName": "Petra",
+    "lastName": "Novak",
+    "birthDate": "1993-11-05T00:00:00Z",
+    "gender": "Z"
+  },
+  "employeeContact": { "private": { "email": "petra.novak@example.com" } }
+}

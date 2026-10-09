@@ -46,6 +46,50 @@ public sealed class KafkaEventPublisherTests
     }
     #endregion
 
+    #region PublishAsync_WithoutStringGroupId_PublishesUnchangedPayloadWithoutKey
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("[]")]
+    [InlineData("\"text\"")]
+    [InlineData("123")]
+    [InlineData("true")]
+    [InlineData("false")]
+    [InlineData("null")]
+    [InlineData("{ \"mappingFields\": null }")]
+    [InlineData("{\"mappingFields\":[]}")]
+    [InlineData("{\"mappingFields\":\"text\"}")]
+    [InlineData("{\"mappingFields\":{}}")]
+    [InlineData("{\"mappingFields\":{\"EmployeeId\":null}}")]
+    [InlineData("{\"mappingFields\":{\"EmployeeId\":[]}}")]
+    [InlineData("{\"mappingFields\":{\"EmployeeId\":123}}")]
+    [InlineData("{\"mappingFields\":{\"EmployeeId\":{}}}")]
+    [InlineData("{\"mappingFields\":{\"EmployeeId\":{\"groupId\":123}}}")]
+    [InlineData("{\"mappingFields\":{\"EmployeeId\":{\"groupId\":null}}}")]
+    [InlineData("{\"mappingFields\":{\"EmployeeId\":{\"groupId\":{}}}}")]
+    [InlineData("{\"mappingFields\":{\"EmployeeId\":{\"groupId\":[]}}}")]
+    public async Task PublishAsync_WithoutStringGroupId_PublishesUnchangedPayloadWithoutKey(string json)
+    {
+        var producer = DispatchProxy.Create<IProducer<string, string>, RecordingProducerHelper>();
+        var recordingProducer = (RecordingProducerHelper)(object)producer;
+        recordingProducer.DeliveryResult = new DeliveryResult<string, string>
+        {
+            Topic = KafkaTopicsConstants.Accounts,
+            Partition = new Partition(0),
+            Offset = new Offset(42)
+        };
+        var publisher = new KafkaEventPublisher(producer, NullLogger<KafkaEventPublisher>.Instance);
+        using var document = JsonDocument.Parse(json);
+
+        var result = await publisher.PublishAsync(KafkaTopicsConstants.Accounts, document.RootElement, "request-001", CancellationToken.None);
+
+        Assert.Equal(new PublishResult(KafkaTopicsConstants.Accounts, 0, 42), result);
+        Assert.Equal(KafkaTopicsConstants.Accounts, recordingProducer.Topic);
+        Assert.NotNull(recordingProducer.Message);
+        Assert.Null(recordingProducer.Message.Key);
+        Assert.Equal(json, recordingProducer.Message.Value);
+    }
+    #endregion
+
     #region PublicAsync_WithUnsupportedTopic_ThrowsWithoutCallingProducer
     /// <summary>
     /// Tests that the PublishAsync method of KafkaEventPublisher throws an ArgumentException when called with an unsupported topic,

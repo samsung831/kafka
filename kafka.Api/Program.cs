@@ -103,7 +103,6 @@ builder.Services.AddSingleton<IProducer<string, string>>(
 
 builder.Services.AddSingleton<IEventPublisher, KafkaEventPublisher>();
 builder.Services.AddSingleton<MongoContext>();
-builder.Services.AddSingleton<MongoIndexInitializer>();
 builder.Services.AddScoped<IPersonService, PersonService>();
 
 builder.Services
@@ -137,13 +136,6 @@ builder.Services
         tags: new[] { "ready" });
 
 var app = builder.Build();
-
-using (var scope = app.Services.CreateScope())
-{
-    var indexInitializer = scope.ServiceProvider.GetRequiredService<MongoIndexInitializer>();
-
-    await indexInitializer.CreateIndexesAsync();
-}
 
 app.UseExceptionHandler();
 

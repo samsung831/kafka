@@ -6,6 +6,14 @@ public sealed class EmployeeDto
 
     #region Public
 
+    #region IsActive
+    public bool IsActive { get; set; }
+    #endregion
+
+    #region IsDeleted
+    public bool IsDeleted { get; set; }
+    #endregion
+
     #region EmploymentData
     public EmploymentDataDto EmploymentData { get; set; } = new();
     #endregion

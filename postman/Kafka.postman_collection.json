@@ -85,7 +85,7 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:5210/api/persons/ABC123\n",
+          "raw": "http://localhost:5210/api/persons/ABC123",
           "protocol": "http",
           "host": [
             "localhost"
@@ -94,7 +94,7 @@
           "path": [
             "api",
             "persons",
-            "ABC123\n"
+            "ABC123"
           ]
         }
       },
@@ -137,7 +137,7 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:5210/api/persons/search?firstName=Testo&lastName=Testic&isActive=true&isDeleted=false",
+          "raw": "http://localhost:5210/api/persons/search?firstName=Testo&lastName=Testic&accountIsActive=true&accountIsDeleted=false&employmentIsActive=true&employmentIsDeleted=false",
           "protocol": "http",
           "host": [
             "localhost"
@@ -158,11 +158,19 @@
               "value": "Testic"
             },
             {
-              "key": "isActive",
+              "key": "accountIsActive",
               "value": "true"
             },
             {
-              "key": "isDeleted",
+              "key": "accountIsDeleted",
+              "value": "false"
+            },
+            {
+              "key": "employmentIsActive",
+              "value": "true"
+            },
+            {
+              "key": "employmentIsDeleted",
               "value": "false"
             }
           ]
@@ -176,7 +184,7 @@
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "http://localhost:5210/api/persons/ABC123?isActive=true&isDeleted=false",
+          "raw": "http://localhost:5210/api/persons/ABC123?accountIsActive=true&accountIsDeleted=false&employmentIsActive=true&employmentIsDeleted=false",
           "protocol": "http",
           "host": [
             "localhost"
@@ -189,11 +197,19 @@
           ],
           "query": [
             {
-              "key": "isActive",
+              "key": "accountIsActive",
               "value": "true"
             },
             {
-              "key": "isDeleted",
+              "key": "accountIsDeleted",
+              "value": "false"
+            },
+            {
+              "key": "employmentIsActive",
+              "value": "true"
+            },
+            {
+              "key": "employmentIsDeleted",
               "value": "false"
             }
           ]

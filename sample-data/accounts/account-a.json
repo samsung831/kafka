@@ -1,0 +1,17 @@
+{
+  "_id": "65a000000000000000000001",
+  "isActive": true,
+  "isDeleted": false,
+  "createdDate": "2026-01-01T00:00:00Z",
+  "modifiedDate": "2026-06-01T00:00:00Z",
+  "version": 1,
+  "mappingFields": { "EmployeeId": { "groupId": "SAMPLE-GROUP-A" } },
+  "names": { "display": "Ana Horvat", "aliases": ["Ana"], "localized": { "hr": "Ana Horvat" } },
+  "personalData": {
+    "firstName": "Ana",
+    "lastName": "Horvat",
+    "birthDate": "1990-03-15T00:00:00Z",
+    "gender": "Z"
+  },
+  "employeeContact": { "private": { "email": "ana.horvat@example.com" } }
+}

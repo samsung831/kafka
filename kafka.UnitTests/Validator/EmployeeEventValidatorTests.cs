@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Text.Json;
 using kafka.Shared.Models.Common;
 using kafka.Shared.Models.Employees;
 using kafka.Shared.Validation;
@@ -57,6 +58,60 @@ public sealed class EmployeeEventValidatorTests
         var exception = Record.Exception(() => EmployeeEventValidator.Validate(employee));
 
         Assert.Null(exception);
+    }
+    #endregion
+
+    #region Deserialize_WhenRequiredPropertyIsOmitted_Throws
+    /// <summary>
+    /// Validates that deserializing an EmployeeDocument with a required property omitted throws a JsonException.
+    /// </summary>
+    /// <param name="propertyName">The name of the required property to omit.</param>
+    [Theory]
+    [InlineData("version")]
+    [InlineData("employmentData")]
+    public void Deserialize_WhenRequiredPropertyIsOmitted_Throws(string propertyName)
+    {
+        var payload = JsonSerializer.SerializeToNode(CreateValidEmployee(), JsonSerializerOptions.Web)!.AsObject();
+        payload.Remove(propertyName);
+
+        var exception = Assert.Throws<JsonException>(() =>
+            JsonSerializer.Deserialize<EmployeeDocument>(payload.ToJsonString(), JsonSerializerOptions.Web));
+
+        Assert.Contains(propertyName, exception.Message);
+    }
+    #endregion
+
+    #region Validate_WhenJsonEmploymentDataIsNull_Throws
+    /// <summary>
+    /// Validates that the EmployeeEventValidator throws an ArgumentException when the employmentData property in the JSON representation of the EmployeeDocument is null.
+    /// </summary>
+    [Fact]
+    public void Validate_WhenJsonEmploymentDataIsNull_Throws()
+    {
+        var payload = JsonSerializer.SerializeToNode(CreateValidEmployee(), JsonSerializerOptions.Web)!.AsObject();
+        payload["employmentData"] = null;
+        var employee = JsonSerializer.Deserialize<EmployeeDocument>(payload.ToJsonString(), JsonSerializerOptions.Web)!;
+
+        var exception = Assert.Throws<ArgumentException>(() => EmployeeEventValidator.Validate(employee));
+
+        Assert.Contains("employmentData is required", exception.Message);
+    }
+    #endregion
+
+    #region Validate_WhenJsonVersionIsExplicitlyZero_DoesNotThrow
+    /// <summary>
+    /// Validates that the EmployeeEventValidator does not throw an exception when the version property in the JSON representation of the EmployeeDocument is explicitly set to zero.
+    /// </summary>
+    [Fact]
+    public void Validate_WhenJsonVersionIsExplicitlyZero_DoesNotThrow()
+    {
+        var original = CreateValidEmployee();
+        original.Version = 0;
+        var json = JsonSerializer.Serialize(original, JsonSerializerOptions.Web);
+        var employee = JsonSerializer.Deserialize<EmployeeDocument>(json, JsonSerializerOptions.Web)!;
+
+        Assert.Equal(0, employee.Version);
+        Assert.Null(Record.Exception(() => EmployeeEventValidator.Validate(employee)));
     }
     #endregion
 

@@ -19,6 +19,22 @@ mappingFields.EmployeeId.groupId
 
 One account may have multiple employment records, but only one employment may be active and non-deleted for the same `groupId` at a time.
 
+## MongoDB index ownership
+
+Index definitions are centralized in `kafka.Shared/MongoDB/MongoIndexInitializer.cs`, while each worker owns initialization for its collection:
+
+- `kafka.AccountService` creates account lookup and name-search indexes before its consumer starts.
+- `kafka.EmployeeService` creates employee lookup indexes and the unique active-employment index before its consumer starts.
+- `kafka.Api` queries MongoDB but does not create indexes.
+
+Start both workers and verify their health endpoints before using the API. If index creation fails, the affected worker does not start consuming. Existing conflicting active employments must be reconciled before the unique index can be created; startup does not automatically delete or modify those records.
+
+## Flexible account names
+
+`names` is stored as a MongoDB `BsonDocument` and returned as a JSON object. Nested objects, arrays, strings, numbers, booleans, and null values are supported without a fixed schema. Omitted `names`, explicit JSON null, and legacy BSON null values are normalized to `{}`. Other root types are rejected during consumer deserialization.
+
+The small converter uses MongoDB's built-in JSON parser and relaxed Extended JSON output. Extended JSON-looking objects (such as `$oid` or `$date` wrappers) can be interpreted as BSON types, and arbitrary numeric precision or the original JSON representation is not guaranteed. This is not a lossless arbitrary-JSON archive.
+
 ## Technology stack
 
 - .NET 10
@@ -165,6 +181,15 @@ http://localhost:5210/swagger
 # API endpoints
 
 `kafka.Api` accepts arbitrary JSON as `JsonElement`. The API publishes the body to the appropriate Kafka topic. Business validation is performed later by the appropriate consumer.
+
+## Why two event endpoints?
+
+I chose `POST /api/events/accounts` and `POST /api/events/employees` instead of a single endpoint with a topic-name query parameter because this API accepts two known categories of business events, rather than acting as a general-purpose Kafka gateway.
+
+- **Clear contract:** each route explicitly identifies the event category and is easy to document, discover in Swagger, and use in client integrations.
+- **Controlled routing:** clients cannot select arbitrary Kafka topics. Each endpoint maps to a predefined topic, reducing accidental publication to the wrong destination.
+- **Separation from infrastructure:** clients use business-oriented routes instead of supplying physical Kafka topic names. Topic routing can change internally without changing the public routes.
+- **Independent policies:** separate routes make it straightforward to introduce different authorization, rate limits, or monitoring for account and employee ingestion later. These policies are not currently implemented.
 
 ## Publish an account event
 
@@ -360,49 +385,86 @@ Example response shape:
 ```json
 {
   "account": {
-    "_id": "64c3e0f5d1f4c2a1b2c3d4e5",
-    "version": 48,
-    "mappingFields": {
-      "employeeId": {
-        "groupId": "ABC123"
-      }
-    },
+    "isActive": true,
+    "isDeleted": false,
+    "names": {},
+    "address": null,
     "personalData": {
+      "age": 61,
+      "birthDate": "1964-01-01T00:00:00Z",
       "firstName": "Testo",
-      "lastName": "Testic"
-    }
+      "lastName": "Testic",
+      "gender": "Z"
+    },
+    "employeeContact": null
   },
   "employees": [
     {
-      "_id": "64c3e0f5d1f4c2a1b2c3d4e7",
-      "version": 157,
-      "isActive": true
+      "isActive": true,
+      "isDeleted": false,
+      "employmentData": {
+        "employmentStatus": "Working",
+        "originalHireDate": null,
+        "lastHireDate": null,
+        "lastJobPositionChangeDate": null,
+        "expiredContractDate": null
+      },
+      "employeeContact": null
     },
     {
-      "_id": "64c3e0f5d1f4c2a1b2c3d4e6",
-      "version": 25,
-      "isActive": false
+      "isActive": false,
+      "isDeleted": false,
+      "employmentData": {
+        "employmentStatus": "Ended",
+        "originalHireDate": null,
+        "lastHireDate": null,
+        "lastJobPositionChangeDate": null,
+        "expiredContractDate": null
+      },
+      "employeeContact": null
     }
   ]
 }
 ```
 
-If no account exists for the requested `groupId`, the API returns HTTP `404` with a Problem Details response.
+Each account and employment DTO exposes its own `isActive` and `isDeleted` values so clients can distinguish document status from employment business status. The DTOs do not expose MongoDB document IDs, `groupId`, versions, or creation/modification timestamps. Optional sections are shown as null in this example.
 
-## Filter by status
+If no account exists for the requested `groupId`, or the account does not match the account filters, the API returns HTTP `404` with a Problem Details response.
 
-Full local address:
+## Independent account and employment status filters
+
+Account status and employment status are independent: an inactive person can have an active employment, and an active person can have only historical employments or none at all. Both read endpoints support these optional boolean query parameters:
+
+| Parameter | Filters | Behavior when omitted |
+|---|---|---|
+| `accountIsActive` | Account `isActive` | Include active and inactive accounts |
+| `accountIsDeleted` | Account `isDeleted` | Exclude deleted accounts (`false`) |
+| `employmentIsActive` | Employment `isActive` | Include active and inactive employments |
+| `employmentIsDeleted` | Employment `isDeleted` | Exclude deleted employments (`false`) |
+
+For any parameter, an explicit `true` or `false` selects documents with that exact value. In particular, `accountIsDeleted=true` selects deleted accounts only, and `employmentIsDeleted=true` selects deleted employments only; these values do not include both deleted and non-deleted records. Invalid boolean values return HTTP `400`.
+
+Account filters decide whether a person appears. Employment filters only restrict that person's employment list. A matching account is still returned with `employees: []` when no employments match, or when it has no employments at all. Search omits accounts that do not match the account filters and returns an empty array when no accounts match.
+
+Without status parameters, both endpoints return non-deleted accounts with all their non-deleted employments, including inactive/historical records. This keeps soft-deleted data hidden by default without removing legitimate history.
+
+Example: return an active, non-deleted account with only its active, non-deleted employments:
 
 ```text
-http://localhost:5210/api/persons/ABC123?isActive=true&isDeleted=false
+http://localhost:5210/api/persons/ABC123?accountIsActive=true&accountIsDeleted=false&employmentIsActive=true&employmentIsDeleted=false
 ```
 
-Optional query parameters:
+Example: return an inactive, non-deleted account with its active, non-deleted employments:
 
 ```text
-isActive
-isDeleted
+http://localhost:5210/api/persons/ABC123?accountIsActive=false&employmentIsActive=true
 ```
+
+### Contract change and production access
+
+The independent parameters replace the former shared `isActive` and `isDeleted` query parameters; clients must update their requests. Omitting filters now excludes deleted documents rather than returning all statuses. Event payload field names remain `isActive` and `isDeleted` and are unchanged.
+
+The API currently permits explicit queries for deleted records and does not implement authentication or authorization. Before production deployment, protect personal data and decide which callers may retrieve deleted records. Hiding records by default and omitting MongoDB IDs are not substitutes for authorization.
 
 ## Search by first and last name
 
@@ -419,7 +481,7 @@ http://localhost:5210/api/persons/search?firstName=Testo&lastName=Testic
 With optional status filters:
 
 ```text
-http://localhost:5210/api/persons/search?firstName=Testo&lastName=Testic&isActive=true&isDeleted=false
+http://localhost:5210/api/persons/search?firstName=Testo&lastName=Testic&accountIsActive=true&accountIsDeleted=false&employmentIsActive=true&employmentIsDeleted=false
 ```
 
 Both `firstName` and `lastName` are required.
@@ -428,12 +490,22 @@ Both `firstName` and `lastName` are required.
 
 ## JSON Samples
 
-The `samples` folder contains JSON sample files for testing:
+The `sample-data` folder contains 10 individual JSON event files for testing account-to-employment linking:
 
-- **Account samples**: JSON samples for account events to use with the account publishing endpoint
-- **Employee samples**: JSON samples for employee events to use with the employee publishing endpoint
+- [`sample-data/accounts`](sample-data/accounts): 3 account events, one per file.
+- [`sample-data/employees`](sample-data/employees): 7 employment events, one per file.
 
-Use these samples to quickly test the API without manually constructing JSON payloads.
+| Account file | Person | `groupId` | Employment records | Active records |
+|---|---|---|---:|---:|
+| `account-a.json` | Ana Horvat | `SAMPLE-GROUP-A` | 3 | 1 |
+| `account-b.json` | Marko Kovac | `SAMPLE-GROUP-B` | 2 | 1 |
+| `account-c.json` | Petra Novak | `SAMPLE-GROUP-C` | 2 | 0 |
+
+Each event has a unique `_id`. Employment events link to their account through `mappingFields.EmployeeId.groupId`. Historical employments are inactive and non-deleted; each group has at most one active, non-deleted employment.
+
+With the API and both workers running, send each account file as the JSON body of a separate `POST /api/events/accounts` request, and each employment file to `POST /api/events/employees`. Use `Content-Type: application/json`. These files contain single events, not arrays; the endpoints do not accept batches. Reposting an unchanged sample is ignored by version-aware persistence once it has been stored.
+
+After the workers process the events, verify the links using `GET /api/persons/SAMPLE-GROUP-A` (3 employments), `GET /api/persons/SAMPLE-GROUP-B` (2), and `GET /api/persons/SAMPLE-GROUP-C` (2). Adding `?employmentIsActive=true&employmentIsDeleted=false` returns one employment for groups A and B, and an empty employment list for group C; the account is still returned. Account activity is not restricted unless `accountIsActive` is supplied. Search by the first and last names in the table to verify the same grouping through the search endpoint.
 
 ## Postman Collection
 
@@ -480,7 +552,7 @@ A second active, non-deleted employment for the same `groupId` is treated as a p
 
 ## Retry behavior
 
-MongoDB persistence is executed through a bounded Polly retry policy.
+MongoDB persistence uses a bounded Polly retry policy for `MongoConnectionException`, `MongoExecutionTimeoutException`, and `TimeoutException`. Other exceptions are not retried by this policy.
 
 Default values:
 
@@ -493,9 +565,26 @@ Jitter: enabled
 
 Invalid JSON and deterministic validation errors are not retried because retrying the same payload cannot correct the message.
 
+If a transient failure persists after the configured retries, the exception is rethrown and the worker stops. The failed event is not sent to DLQ and its source offset is not committed. Restarting the worker allows the uncommitted event to be consumed again; recovery is not automatic within the stopped worker.
+
+### Design decision and production recovery
+
+For this assignment, I intentionally chose bounded retries followed by stopping the worker to keep the implementation simple. I avoided adding a Kafka-aware outage recovery state machine, which would require coordinating retries, partition pausing, polling, and rebalances. The failed event remains uncommitted and can be replayed after a restart. This choice requires restart supervision and monitoring for unattended operation. It does not provide automatic recovery inside the worker.
+
+For production, I would implement recovery from temporary MongoDB outages without restarting the worker:
+
+- After short retries are exhausted, enter a recovery state and retry persistence with longer, bounded backoff delays and jitter until recovery or shutdown.
+- Keep the failed event uncommitted and pause affected partitions so later events do not overtake it.
+- Continue Kafka polling to maintain consumer group membership and respect `max.poll.interval.ms`; an infinite retry loop that blocks polling is not sufficient.
+- Handle partition revocation and reassignment safely. Do not retry or commit a retained event after losing ownership; let the new owner replay it.
+- Once persistence succeeds and partition ownership is still valid, commit the processed offset and resume consumption.
+- Report the outage through logs, metrics, alerts, and readiness health while keeping the service alive and responsive to cancellation.
+
+DLQ handling would remain for invalid events and explicitly classified non-recoverable failures, rather than valid events affected by a temporary infrastructure outage. This recovery flow is a production improvement, not part of the current implementation.
+
 ## Dead-letter handling
 
-Messages are sent to a DLQ when they cannot be safely processed.
+Consumer deserialization/validation errors and `MongoWriteException` failures are sent to the corresponding DLQ without persistence retries. Unexpected exceptions, including exhausted transient failures, stop the worker instead.
 
 Examples:
 
@@ -504,10 +593,13 @@ Malformed JSON
 Missing groupId
 Invalid ObjectId
 Negative version
-Missing required event sections
-MongoDB failure after retries are exhausted
+Missing version or required personalData/employmentData section
+Invalid names JSON shape or BSON conversion
+MongoDB write error
 Duplicate active employment conflict
 ```
+
+The account worker labels MongoDB write errors as `validation`. The employee worker labels duplicate-key errors as `validation` and other MongoDB write errors as `persistence`.
 
 The source Kafka offset is committed only after:
 
@@ -650,10 +742,10 @@ If `kafka.Api` runs locally while the workers run through Docker, these values s
 {
   "WorkerServices": {
     "AccountService": {
-      "HealthUrl": "http://localhost:5101/health/ready"
+      "HealthUrl": "http://localhost:5101/health"
     },
     "EmployeeService": {
-      "HealthUrl": "http://localhost:5102/health/ready"
+      "HealthUrl": "http://localhost:5102/health"
     }
   }
 }

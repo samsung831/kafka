@@ -46,7 +46,19 @@ builder.Services
             "Mongo DatabaseName is required.")
     .ValidateOnStart();
 
+builder.Services
+    .AddOptions<ResilienceOptions>()
+    .Bind(builder.Configuration.GetSection(ResilienceOptions.SectionName))
+    .Validate(
+        options => options.MaxRetryAttempts > 0,
+            "Resilience MaxRetryAttempts must be greater than zero.")
+    .Validate(
+        options => options.RetryDelayMilliseconds >= 0,
+            "Resilience RetryDelayMilliseconds cannot be negative.")
+    .ValidateOnStart();
+
 builder.Services.AddSingleton<MongoContext>();
+builder.Services.AddSingleton<MongoIndexInitializer>();
 builder.Services.AddSingleton<WorkerHealthState>();
 builder.Services.AddHostedService<AccountConsumerWorker>();
 
@@ -65,6 +77,13 @@ builder.Services.AddHealthChecks()
         tags: new[] { "ready" });
 
 var app = builder.Build();
+
+using (var scope = app.Services.CreateScope())
+{
+    var indexInitializer = scope.ServiceProvider.GetRequiredService<MongoIndexInitializer>();
+
+    await indexInitializer.CreateAccountIndexesAsync();
+}
 
 app.MapHealthChecks("/health",
     new HealthCheckOptions

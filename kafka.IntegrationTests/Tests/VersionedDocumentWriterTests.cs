@@ -5,6 +5,7 @@ using kafka.IntegrationTests.Infrastructure;
 using kafka.Shared.Models.Accounts;
 using kafka.Shared.Models.Common;
 using kafka.Shared.MongoDB;
+using MongoDB.Bson;
 using MongoDB.Driver;
 
 namespace kafka.IntegrationTests.Tests;
@@ -59,7 +60,7 @@ public sealed class VersionedDocumentWriterTests
                 FirstName = firstName,
                 LastName = "Integration"
             },
-            Names = new Dictionary<string, object>()
+            Names = new BsonDocument()
         };
     }
     #endregion

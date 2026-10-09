@@ -1,0 +1,17 @@
+{
+  "_id": "65a000000000000000000002",
+  "isActive": true,
+  "isDeleted": false,
+  "createdDate": "2026-01-01T00:00:00Z",
+  "modifiedDate": "2026-06-01T00:00:00Z",
+  "version": 1,
+  "mappingFields": { "EmployeeId": { "groupId": "SAMPLE-GROUP-B" } },
+  "names": { "display": "Marko Kovac", "aliases": ["Marko"] },
+  "personalData": {
+    "firstName": "Marko",
+    "lastName": "Kovac",
+    "birthDate": "1985-07-20T00:00:00Z",
+    "gender": "M"
+  },
+  "employeeContact": { "private": { "email": "marko.kovac@example.com" } }
+}

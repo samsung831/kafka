@@ -45,6 +45,7 @@ public abstract class BaseDocument
 
     #region Version
     [BsonElement("version")]
+    [JsonRequired]
     public long Version { get; set; }
     #endregion
 

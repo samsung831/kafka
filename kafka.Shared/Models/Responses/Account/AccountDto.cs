@@ -1,4 +1,6 @@
-﻿namespace kafka.Shared.Models.Responses.Account;
+﻿using System.Text.Json;
+
+namespace kafka.Shared.Models.Responses.Account;
 
 public sealed class AccountDto
 {
@@ -6,8 +8,16 @@ public sealed class AccountDto
 
     #region Public
 
+    #region IsActive
+    public bool IsActive { get; set; }
+    #endregion
+
+    #region IsDeleted
+    public bool IsDeleted { get; set; }
+    #endregion
+
     #region Names
-    public Dictionary<string, object> Names { get; set; } = new();
+    public JsonElement Names { get; set; } = JsonSerializer.Deserialize<JsonElement>("{}");
     #endregion
 
     #region Address
