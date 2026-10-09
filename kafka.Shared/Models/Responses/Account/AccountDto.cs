@@ -17,7 +17,7 @@ public sealed class AccountDto
     #endregion
 
     #region Names
-    public JsonElement Names { get; set; } = JsonSerializer.Deserialize<JsonElement>("{}");
+    public Dictionary<string, object> Names { get; set; } = new();
     #endregion
 
     #region Address

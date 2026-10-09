@@ -4,7 +4,6 @@ using kafka.Shared.Models.Responses;
 using kafka.Shared.Models.Responses.Account;
 using kafka.Shared.Models.Responses.Employee;
 using kafka.Shared.MongoDB;
-using kafka.Shared.Serialization;
 using MongoDB.Driver;
 using System.Text.Json;
 
@@ -23,10 +22,6 @@ public sealed class PersonService : IPersonService
 
     #region Private
     private readonly MongoContext _context;
-    private static readonly JsonSerializerOptions _namesJsonOptions = new()
-    {
-        Converters = { new BsonDocumentJsonConverter() }
-    };
     #endregion
 
     #endregion
@@ -47,7 +42,7 @@ public sealed class PersonService : IPersonService
         {
             IsActive = account.IsActive,
             IsDeleted = account.IsDeleted,
-            Names = JsonSerializer.SerializeToElement(account.Names, _namesJsonOptions),
+            Names = new Dictionary<string, object>(account.Names, account.Names.Comparer),
             Address = account.Address is { } address ? new AddressDto
             {
                 Type = address.Type,

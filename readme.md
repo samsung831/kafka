@@ -29,12 +29,6 @@ Index definitions are centralized in `kafka.Shared/MongoDB/MongoIndexInitializer
 
 Start both workers and verify their health endpoints before using the API. If index creation fails, the affected worker does not start consuming. Existing conflicting active employments must be reconciled before the unique index can be created; startup does not automatically delete or modify those records.
 
-## Flexible account names
-
-`names` is stored as a MongoDB `BsonDocument` and returned as a JSON object. Nested objects, arrays, strings, numbers, booleans, and null values are supported without a fixed schema. Omitted `names`, explicit JSON null, and legacy BSON null values are normalized to `{}`. Other root types are rejected during consumer deserialization.
-
-The small converter uses MongoDB's built-in JSON parser and relaxed Extended JSON output. Extended JSON-looking objects (such as `$oid` or `$date` wrappers) can be interpreted as BSON types, and arbitrary numeric precision or the original JSON representation is not guaranteed. This is not a lossless arbitrary-JSON archive.
-
 ## Technology stack
 
 - .NET 10
@@ -594,7 +588,7 @@ Missing groupId
 Invalid ObjectId
 Negative version
 Missing version or required personalData/employmentData section
-Invalid names JSON shape or BSON conversion
+Invalid names JSON shape (the value must be an object)
 MongoDB write error
 Duplicate active employment conflict
 ```
