@@ -370,7 +370,7 @@ public sealed class EventProcessingFlowTests
         await WaitForAccountVersionAsync(accountId, expectedVersion: 48);
         var storedAccount = await FindAccountAsync(accountId, CancellationToken.None);
         Assert.NotNull(storedAccount);
-        Assert.Equal(BsonDocument.Parse(expectedNames!.ToJsonString()), storedAccount.Names);
+        Assert.True(JsonNode.DeepEquals(expectedNames, JsonSerializer.SerializeToNode(storedAccount.Names, JsonSerializerOptions.Web)));
 
         //Retrieve combined person through PersonsApi.
         using var personHttpResponse = await _fixture.KafkaApiClient.GetAsync($"/api/persons/{groupId}");
@@ -378,7 +378,7 @@ public sealed class EventProcessingFlowTests
         Assert.Equal(HttpStatusCode.OK, personHttpResponse.StatusCode);
 
         var person = await DeserializeAsync<PersonResponseDto>(personHttpResponse);
-        Assert.True(JsonNode.DeepEquals(expectedNames, JsonNode.Parse(person.Account.Names.GetRawText())));
+        Assert.True(JsonNode.DeepEquals(expectedNames, JsonSerializer.SerializeToNode(person.Account.Names, JsonSerializerOptions.Web)));
 
         Assert.Equal("Testo", person.Account.PersonalData.FirstName);
 
@@ -402,7 +402,7 @@ public sealed class EventProcessingFlowTests
         var searchResults = await DeserializeAsync<List<PersonResponseDto>>(searchHttpResponse);
 
         var matchingPerson = Assert.Single(searchResults);
-        Assert.True(JsonNode.DeepEquals(expectedNames, JsonNode.Parse(matchingPerson.Account.Names.GetRawText())));
+        Assert.True(JsonNode.DeepEquals(expectedNames, JsonSerializer.SerializeToNode(matchingPerson.Account.Names, JsonSerializerOptions.Web)));
 
         Assert.Equal("Testo", matchingPerson.Account.PersonalData.FirstName);
         Assert.Equal("Testic", matchingPerson.Account.PersonalData.LastName);

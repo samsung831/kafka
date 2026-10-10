@@ -96,7 +96,7 @@ public sealed class AccountNamesTests
 
         var restored = BsonSerializer.Deserialize<AccountDocument>(account.ToBson());
         Assert.Empty(restored.Names);
-        Assert.Equal("{}", MapAccount(restored).Names.GetRawText());
+        Assert.Empty(MapAccount(restored).Names);
     }
     #endregion
 
@@ -113,7 +113,7 @@ public sealed class AccountNamesTests
         var restored = BsonSerializer.Deserialize<AccountDocument>(bson.ToBson());
 
         Assert.Empty(restored.Names);
-        Assert.Equal("{}", MapAccount(restored).Names.GetRawText());
+        Assert.Empty(MapAccount(restored).Names);
         Assert.Equal(BsonType.Document, restored.ToBsonDocument()["names"].BsonType);
     }
     #endregion

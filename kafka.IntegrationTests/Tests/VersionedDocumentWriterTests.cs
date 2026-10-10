@@ -60,7 +60,7 @@ public sealed class VersionedDocumentWriterTests
                 FirstName = firstName,
                 LastName = "Integration"
             },
-            Names = new BsonDocument()
+            Names = new Dictionary<string, object>()
         };
     }
     #endregion
