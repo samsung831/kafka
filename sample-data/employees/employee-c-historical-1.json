@@ -5,7 +5,11 @@
   "createdDate": "2020-01-01T00:00:00Z",
   "modifiedDate": "2022-12-31T00:00:00Z",
   "version": 1,
-  "mappingFields": { "EmployeeId": { "groupId": "SAMPLE-GROUP-C" } },
+  "mappingFields": {
+    "EmployeeId": {
+      "groupId": "SAMPLE-GROUP-C"
+    }
+  },
   "employmentData": {
     "employmentStatus": "Ended",
     "originalHireDate": "2020-01-01T00:00:00Z",
@@ -13,5 +17,10 @@
     "lastJobPositionChangeDate": "2020-01-01T00:00:00Z",
     "expiredContractDate": "2022-12-31T00:00:00Z"
   },
-  "employeeContact": { "work": { "email": "petra.previous1@example.com", "mobile": "" } }
+  "employeeContact": {
+    "work": {
+      "email": "petra.previous1@example.com",
+      "mobile": ""
+    }
+  }
 }

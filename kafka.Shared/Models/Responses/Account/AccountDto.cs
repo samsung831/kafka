@@ -21,7 +21,7 @@ public sealed class AccountDto
     #endregion
 
     #region Address
-    public AddressDto? Address { get; set; }
+    public AddressDto Address { get; set; } = new();
     #endregion
 
     #region PersonalData
@@ -29,7 +29,7 @@ public sealed class AccountDto
     #endregion
 
     #region EmployeeContact
-    public AccountEmployeeContactDto? EmployeeContact { get; set; }
+    public AccountEmployeeContactDto EmployeeContact { get; set; } = new();
     #endregion
 
     #endregion

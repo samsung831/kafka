@@ -378,50 +378,57 @@ Example response shape:
 
 ```json
 {
-  "account": {
-    "isActive": true,
-    "isDeleted": false,
-    "names": {},
-    "address": null,
-    "personalData": {
-      "age": 61,
-      "birthDate": "1964-01-01T00:00:00Z",
-      "firstName": "Testo",
-      "lastName": "Testic",
-      "gender": "Z"
+    "account": {
+        "isActive": true,
+        "isDeleted": false,
+        "names": {},
+        "address": {
+            "type": null,
+            "country": "HR",
+            "state": "ISTARSKA",
+            "city": "LABIN",
+            "zipCode": "52220",
+            "addressLine": null
+        },
+        "personalData": {
+            "age": 61,
+            "birthDate": "1964-01-01T00:00:00Z",
+            "firstName": "Testo",
+            "lastName": "Testic",
+            "gender": "Z"
+        },
+        "employeeContact": {
+            "private": {
+                "email": null,
+                "mobile": "+385 98 123 456",
+                "countryCode": "+385",
+                "country": "HR"
+            }
+        }
     },
-    "employeeContact": null
-  },
-  "employees": [
-    {
-      "isActive": true,
-      "isDeleted": false,
-      "employmentData": {
-        "employmentStatus": "Working",
-        "originalHireDate": null,
-        "lastHireDate": null,
-        "lastJobPositionChangeDate": null,
-        "expiredContractDate": null
-      },
-      "employeeContact": null
-    },
-    {
-      "isActive": false,
-      "isDeleted": false,
-      "employmentData": {
-        "employmentStatus": "Ended",
-        "originalHireDate": null,
-        "lastHireDate": null,
-        "lastJobPositionChangeDate": null,
-        "expiredContractDate": null
-      },
-      "employeeContact": null
-    }
-  ]
+    "employees": [
+        {
+            "isActive": true,
+            "isDeleted": false,
+            "employmentData": {
+                "employmentStatus": "Working",
+                "originalHireDate": "2025-11-24T00:00:00Z",
+                "lastHireDate": "2025-11-24T00:00:00Z",
+                "lastJobPositionChangeDate": "2025-11-24T00:00:00Z",
+                "expiredContractDate": null
+            },
+            "employeeContact": {
+                "work": {
+                    "email": "testo.testic@example.com",
+                    "mobile": ""
+                }
+            }
+        }
+    ]
 }
 ```
 
-Each account and employment DTO exposes its own `isActive` and `isDeleted` values so clients can distinguish document status from employment business status. The DTOs do not expose MongoDB document IDs, `groupId`, versions, or creation/modification timestamps. Optional sections are shown as null in this example.
+Each account and employment DTO exposes its own `isActive` and `isDeleted` values so clients can distinguish document status from employment business status. The DTOs do not expose MongoDB document IDs, `groupId`, versions, or creation/modification timestamps.
 
 If no account exists for the requested `groupId`, or the account does not match the account filters, the API returns HTTP `404` with a Problem Details response.
 
@@ -453,12 +460,6 @@ Example: return an inactive, non-deleted account with its active, non-deleted em
 ```text
 http://localhost:5210/api/persons/ABC123?accountIsActive=false&employmentIsActive=true
 ```
-
-### Contract change and production access
-
-The independent parameters replace the former shared `isActive` and `isDeleted` query parameters; clients must update their requests. Omitting filters now excludes deleted documents rather than returning all statuses. Event payload field names remain `isActive` and `isDeleted` and are unchanged.
-
-The API currently permits explicit queries for deleted records and does not implement authentication or authorization. Before production deployment, protect personal data and decide which callers may retrieve deleted records. Hiding records by default and omitting MongoDB IDs are not substitutes for authorization.
 
 ## Search by first and last name
 
@@ -496,10 +497,6 @@ The `sample-data` folder contains 10 individual JSON event files for testing acc
 | `account-c.json` | Petra Novak | `SAMPLE-GROUP-C` | 2 | 0 |
 
 Each event has a unique `_id`. Employment events link to their account through `mappingFields.EmployeeId.groupId`. Historical employments are inactive and non-deleted; each group has at most one active, non-deleted employment.
-
-With the API and both workers running, send each account file as the JSON body of a separate `POST /api/events/accounts` request, and each employment file to `POST /api/events/employees`. Use `Content-Type: application/json`. These files contain single events, not arrays; the endpoints do not accept batches. Reposting an unchanged sample is ignored by version-aware persistence once it has been stored.
-
-After the workers process the events, verify the links using `GET /api/persons/SAMPLE-GROUP-A` (3 employments), `GET /api/persons/SAMPLE-GROUP-B` (2), and `GET /api/persons/SAMPLE-GROUP-C` (2). Adding `?employmentIsActive=true&employmentIsDeleted=false` returns one employment for groups A and B, and an empty employment list for group C; the account is still returned. Account activity is not restricted unless `accountIsActive` is supplied. Search by the first and last names in the table to verify the same grouping through the search endpoint.
 
 ## Postman Collection
 

@@ -1,5 +1,4 @@
 ﻿using kafka.Shared.Models.Common;
-using kafka.Shared.Serialization;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using System.Net;
@@ -20,8 +19,6 @@ public sealed class AccountDocument : BaseDocument
 
     #region Names
     [BsonElement("names")]
-    [BsonSerializer(typeof(NamesDictionaryBsonSerializer))]
-    [JsonConverter(typeof(NamesDictionaryJsonConverter))]
     public Dictionary<string, object> Names
     {
         get;
@@ -31,7 +28,7 @@ public sealed class AccountDocument : BaseDocument
 
     #region Address
     [BsonElement("address")]
-    public Address? Address { get; set; }
+    public Address Address { get; set; } = new();
     #endregion
 
     #region PersonalData
@@ -42,7 +39,7 @@ public sealed class AccountDocument : BaseDocument
 
     #region EmployeeContact
     [BsonElement("employeeContact")]
-    public AccountEmployeeContact? EmployeeContact { get; set; }
+    public AccountEmployeeContact EmployeeContact { get; set; } = new();
     #endregion
 
     #region GroupId

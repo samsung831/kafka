@@ -23,7 +23,7 @@ public sealed class EmployeeDocument : BaseDocument
 
     #region EmployeeContact
     [BsonElement("employeeContact")]
-    public EmployeeContact? EmployeeContact { get; set; }
+    public EmployeeContact EmployeeContact { get; set; } = new();
     #endregion
 
     #region GroupId

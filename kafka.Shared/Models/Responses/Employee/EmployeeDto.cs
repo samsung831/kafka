@@ -19,7 +19,7 @@ public sealed class EmployeeDto
     #endregion
 
     #region EmployeeContact
-    public EmployeeContactDto? EmployeeContact { get; set; }
+    public EmployeeContactDto EmployeeContact { get; set; } = new();
     #endregion
 
     #endregion

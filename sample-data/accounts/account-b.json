@@ -5,13 +5,29 @@
   "createdDate": "2026-01-01T00:00:00Z",
   "modifiedDate": "2026-06-01T00:00:00Z",
   "version": 1,
-  "mappingFields": { "EmployeeId": { "groupId": "SAMPLE-GROUP-B" } },
-  "names": { "display": "Marko Kovac", "aliases": ["Marko"] },
+  "mappingFields": {
+    "EmployeeId": {
+      "groupId": "SAMPLE-GROUP-B"
+    }
+  },
+  "names": {},
+  "address": {
+    "type": "residential",
+    "country": "Croatia",
+    "state": "Split-Dalmatia County",
+    "city": "Split",
+    "zipCode": "21000",
+    "address": "2 Sample Street"
+  },
   "personalData": {
     "firstName": "Marko",
     "lastName": "Kovac",
     "birthDate": "1985-07-20T00:00:00Z",
     "gender": "M"
   },
-  "employeeContact": { "private": { "email": "marko.kovac@example.com" } }
+  "employeeContact": {
+    "private": {
+      "email": "marko.kovac@example.com"
+    }
+  }
 }
